@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.env
+*.log
+reports/
+midscene_run/
+.DS_Store
+*.tsbuildinfo

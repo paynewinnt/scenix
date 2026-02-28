@@ -1,0 +1,20 @@
+{
+  "name": "ai-test-platform",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI-driven UI automation testing platform powered by Midscene.js and Appium",
+  "scripts": {
+    "dev": "concurrently \"pnpm --filter client dev\" \"pnpm --filter server dev\"",
+    "dev:client": "pnpm --filter client dev",
+    "dev:server": "pnpm --filter server dev",
+    "build": "pnpm --filter client build && pnpm --filter server build",
+    "test": "vitest run",
+    "test:web": "vitest run --project web",
+    "test:android": "vitest run --project android",
+    "test:ios": "vitest run --project ios"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.7.0"
+  }
+}

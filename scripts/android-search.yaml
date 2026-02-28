@@ -1,0 +1,14 @@
+# Midscene.js YAML Test Script - Android Search
+# Run: npx midscene ./scripts/android-search.yaml
+
+target:
+  device: android
+
+tasks:
+  - name: Search on eBay
+    context: 如果出现权限弹窗或用户协议，点击同意/允许
+    flow:
+      - aiAction: 打开 Chrome 浏览器
+      - aiAction: 访问 ebay.com
+      - aiAction: 在搜索框中输入 wireless headphones 并搜索
+      - aiAssert: 页面显示了搜索结果列表
