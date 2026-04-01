@@ -6,3 +6,6 @@ reports/
 midscene_run/
 .DS_Store
 *.tsbuildinfo
+*.db
+*.db-wal
+*.db-shm

@@ -14,6 +14,7 @@ import {
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { testCaseApi, type TestCase } from '../services/api';
+import { formatChinaDateTime } from '../utils/datetime';
 
 const { TextArea } = Input;
 
@@ -87,7 +88,12 @@ export default function TestCases() {
       key: 'steps',
       ellipsis: true,
     },
-    { title: '创建时间', dataIndex: 'createdAt', key: 'createdAt' },
+    {
+      title: '创建时间',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      render: (value: string) => formatChinaDateTime(value),
+    },
     {
       title: '操作',
       key: 'actions',

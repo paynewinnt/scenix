@@ -13,10 +13,15 @@ export interface WebAgentOptions {
 export async function createWebAgent(options: WebAgentOptions = {}) {
   // Dynamic imports to avoid loading heavy dependencies at startup
   const { chromium } = await import('playwright');
-  // @ts-expect-error -- @midscene/web may not have type declarations
-  const { PageAgent } = await import('@midscene/web/playwright');
+  const { PlaywrightAgent } = await import('@midscene/web/playwright');
 
-  const browser = await chromium.launch({ headless: options.headless ?? true });
+  const executablePath = process.env.MIDSCENE_CHROMIUM_EXECUTABLE_PATH;
+  const channel = process.env.MIDSCENE_CHROMIUM_CHANNEL;
+  const browser = await chromium.launch({
+    headless: options.headless ?? true,
+    executablePath: executablePath || undefined,
+    channel: executablePath ? undefined : channel || undefined,
+  });
   const context = await browser.newContext();
   const page = await context.newPage();
 
@@ -24,7 +29,7 @@ export async function createWebAgent(options: WebAgentOptions = {}) {
     await page.goto(options.baseUrl);
   }
 
-  const agent = new PageAgent(page);
+  const agent = new PlaywrightAgent(page);
 
   return {
     agent,

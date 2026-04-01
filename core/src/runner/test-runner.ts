@@ -16,6 +16,11 @@ export interface TestCaseInput {
   platform: 'web' | 'android' | 'ios';
   steps: string;
   deviceUdid?: string;
+  deviceConfig?: {
+    udid?: string;
+    wdaHost?: string;
+    wdaPort?: number;
+  };
 }
 
 export interface TestResult {
@@ -33,14 +38,13 @@ export class TestRunner {
 
     try {
       const steps = this.parseSteps(testCase.steps);
-      await this.executeSteps(testCase.platform, steps, testCase.deviceUdid);
+      await this.executeSteps(testCase.platform, steps, testCase.deviceUdid, testCase.deviceConfig);
 
       return {
         testCaseId: testCase.id,
         status: 'passed',
         startedAt,
         finishedAt: new Date().toISOString(),
-        reportPath: `midscene_run/report/${testCase.id}.html`,
       };
     } catch (err) {
       return {
@@ -64,45 +68,55 @@ export class TestRunner {
     platform: 'web' | 'android' | 'ios',
     steps: string[],
     deviceUdid?: string,
+    deviceConfig?: TestCaseInput['deviceConfig'],
   ): Promise<void> {
     if (platform === 'web') {
       const agent = await createWebAgent({ headless: true });
       try {
-        for (const step of steps) {
-          if (step.toLowerCase().startsWith('断言') || step.toLowerCase().startsWith('assert')) {
-            await agent.aiAssert(step);
-          } else {
-            await agent.aiAction(step);
-          }
-        }
+        await this.runAgentSteps(agent, steps);
       } finally {
         await agent.destroy();
       }
     } else if (platform === 'android') {
       const agent = await createAndroidAgent({ udid: deviceUdid });
       try {
-        for (const step of steps) {
-          if (step.toLowerCase().startsWith('断言') || step.toLowerCase().startsWith('assert')) {
-            await agent.aiAssert(step);
-          } else {
-            await agent.aiAction(step);
-          }
-        }
+        await this.runAgentSteps(agent, steps);
       } finally {
         await agent.destroy();
       }
     } else if (platform === 'ios') {
-      const agent = await createIOSAgent({ udid: deviceUdid });
+      const agent = await createIOSAgent({
+        udid: deviceUdid,
+        wdaHost: deviceConfig?.wdaHost,
+        wdaPort: deviceConfig?.wdaPort,
+      });
       try {
-        for (const step of steps) {
-          if (step.toLowerCase().startsWith('断言') || step.toLowerCase().startsWith('assert')) {
-            await agent.aiAssert(step);
-          } else {
-            await agent.aiAction(step);
-          }
-        }
+        await this.runAgentSteps(agent, steps);
       } finally {
         await agent.destroy();
+      }
+    }
+  }
+
+  private async runAgentSteps(
+    agent: {
+      aiAction(instruction: string): Promise<void>;
+      aiAssert(assertion: string): Promise<void>;
+    },
+    steps: string[],
+  ): Promise<void> {
+    for (const step of steps) {
+      try {
+        if (step.toLowerCase().startsWith('断言') || step.toLowerCase().startsWith('assert')) {
+          await agent.aiAssert(step);
+        } else {
+          await agent.aiAction(step);
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        throw new Error(
+          `步骤执行失败，最多已尝试 3 次重规划：${step}${message ? `。失败原因：${message}` : ''}`,
+        );
       }
     }
   }

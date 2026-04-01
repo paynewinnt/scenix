@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Card,
   Table,
@@ -10,16 +10,19 @@ import {
   Row,
   Col,
   Typography,
+  Popconfirm,
 } from 'antd';
-import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
+import { DeleteOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
-  testCaseApi,
-  testRunApi,
   deviceApi,
-  type TestCase,
-  type TestRun as TestRunType,
+  testRunApi,
+  testSuiteApi,
   type Device,
+  type TestRun,
+  type TestSuite,
 } from '../services/api';
+import { useSSE } from '../hooks/useSSE';
+import { formatChinaDateTime } from '../utils/datetime';
 
 const { Text } = Typography;
 
@@ -39,62 +42,174 @@ const statusLabels: Record<string, string> = {
   error: '异常',
 };
 
-export default function TestRun() {
-  const [cases, setCases] = useState<TestCase[]>([]);
-  const [runs, setRuns] = useState<TestRunType[]>([]);
+export default function TestRunPage() {
+  const [suites, setSuites] = useState<TestSuite[]>([]);
+  const [runs, setRuns] = useState<TestRun[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [selectedCase, setSelectedCase] = useState<string>();
+  const [selectedSuite, setSelectedSuite] = useState<string>();
   const [selectedDevice, setSelectedDevice] = useState<string>();
   const [starting, setStarting] = useState(false);
 
-  useEffect(() => {
-    testCaseApi.list().then(setCases).catch(() => {});
+  const fetchRuns = useCallback(() => {
     testRunApi.list().then(setRuns).catch(() => {});
-    deviceApi.list().then(setDevices).catch(() => {});
   }, []);
 
+  const fetchPageData = useCallback(() => {
+    testSuiteApi.list().then(setSuites).catch(() => {});
+    fetchRuns();
+    deviceApi.list().then(setDevices).catch(() => {});
+  }, [fetchRuns]);
+
+  useEffect(() => {
+    fetchPageData();
+  }, [fetchPageData]);
+
+  useSSE({
+    events: {
+      'test-run:created': (data) => {
+        setRuns((prev) => [data as TestRun, ...prev]);
+      },
+      'test-run:updated': (data) => {
+        const updated = data as TestRun;
+        setRuns((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      },
+      'test-run:deleted': (data) => {
+        const deleted = data as { id: string };
+        setRuns((prev) => prev.filter((item) => item.id !== deleted.id));
+      },
+      reconnect: () => {
+        fetchRuns();
+      },
+    },
+  });
+
+  const selectedSuiteObject = useMemo(
+    () => suites.find((item) => item.id === selectedSuite),
+    [selectedSuite, suites],
+  );
+
   const handleStart = async () => {
-    if (!selectedCase) {
-      message.warning('请先选择测试用例');
+    if (!selectedSuite) {
+      message.warning('请先选择测试套件');
       return;
     }
+
+    if ((selectedSuiteObject?.testCases.length ?? 0) === 0) {
+      message.warning('测试套件至少需要包含一个测试用例');
+      return;
+    }
+
     setStarting(true);
     try {
-      await testRunApi.start(selectedCase, selectedDevice);
-      message.success('测试已启动');
-      const updated = await testRunApi.list();
-      setRuns(updated);
-    } catch {
-      message.error('启动测试失败');
+      await testRunApi.start(selectedSuite, selectedDevice);
+      message.success('测试套件已启动');
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : '启动测试套件失败';
+      message.error(errorMessage);
     } finally {
       setStarting(false);
     }
   };
 
-  const refreshRuns = async () => {
-    const updated = await testRunApi.list();
-    setRuns(updated);
+  const handleDelete = async (id: string) => {
+    try {
+      await testRunApi.delete(id);
+      setRuns((prev) => prev.filter((run) => run.id !== id));
+      message.success('执行记录已删除');
+    } catch {
+      message.error('删除执行记录失败');
+    }
   };
 
-  const selectedCaseObj = cases.find((c) => c.id === selectedCase);
-
   const columns = [
-    { title: '用例名称', dataIndex: 'testCaseName', key: 'testCaseName' },
-    { title: '平台', dataIndex: 'platform', key: 'platform', render: (v: string) => v.toUpperCase() },
+    { title: '套件名称', dataIndex: 'suiteName', key: 'suiteName' },
+    {
+      title: '用例数',
+      key: 'itemCount',
+      render: (_: unknown, record: TestRun) => record.items.length,
+    },
+    {
+      title: '平台',
+      dataIndex: 'platform',
+      key: 'platform',
+      render: (value: string) => value.toUpperCase(),
+    },
     {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s] ?? s}</Tag>,
+      render: (status: string) => <Tag color={statusColors[status]}>{statusLabels[status] ?? status}</Tag>,
     },
-    { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt' },
-    { title: '结束时间', dataIndex: 'finishedAt', key: 'finishedAt', render: (v?: string) => v ?? '-' },
+    {
+      title: '开始时间',
+      dataIndex: 'startedAt',
+      key: 'startedAt',
+      render: (value: string) => formatChinaDateTime(value),
+    },
+    {
+      title: '结束时间',
+      dataIndex: 'finishedAt',
+      key: 'finishedAt',
+      render: (value?: string) => formatChinaDateTime(value),
+    },
     {
       title: '错误信息',
       dataIndex: 'errorMessage',
       key: 'errorMessage',
       ellipsis: true,
-      render: (v?: string) => v ? <Text type="danger">{v}</Text> : '-',
+      render: (value?: string) => (value ? <Text type="danger">{value}</Text> : '-'),
+    },
+    {
+      title: '操作',
+      key: 'actions',
+      render: (_: unknown, record: TestRun) => (
+        <Popconfirm
+          title="确认删除这条执行记录?"
+          onConfirm={() => handleDelete(record.id)}
+          okText="删除"
+          cancelText="取消"
+          disabled={record.status === 'pending' || record.status === 'running'}
+        >
+          <Button
+            size="small"
+            danger
+            icon={<DeleteOutlined />}
+            disabled={record.status === 'pending' || record.status === 'running'}
+          >
+            删除
+          </Button>
+        </Popconfirm>
+      ),
+    },
+  ];
+
+  const itemColumns = [
+    { title: '用例名称', dataIndex: 'testCaseName', key: 'testCaseName' },
+    {
+      title: '状态',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status: string) => <Tag color={statusColors[status]}>{statusLabels[status] ?? status}</Tag>,
+    },
+    {
+      title: '开始时间',
+      dataIndex: 'startedAt',
+      key: 'startedAt',
+      render: (value?: string) => formatChinaDateTime(value),
+    },
+    {
+      title: '结束时间',
+      dataIndex: 'finishedAt',
+      key: 'finishedAt',
+      render: (value?: string) => formatChinaDateTime(value),
+    },
+    {
+      title: '错误信息',
+      dataIndex: 'errorMessage',
+      key: 'errorMessage',
+      ellipsis: true,
+      render: (value?: string) => (value ? <Text type="danger">{value}</Text> : '-'),
     },
   ];
 
@@ -105,12 +220,15 @@ export default function TestRun() {
           <Col span={8}>
             <Select
               style={{ width: '100%' }}
-              placeholder="选择测试用例"
-              value={selectedCase}
-              onChange={setSelectedCase}
-              options={cases.map((c) => ({
-                value: c.id,
-                label: `${c.name} (${c.platform.toUpperCase()})`,
+              placeholder="选择测试套件"
+              value={selectedSuite}
+              onChange={(value) => {
+                setSelectedSuite(value);
+                setSelectedDevice(undefined);
+              }}
+              options={suites.map((suite) => ({
+                value: suite.id,
+                label: `${suite.name} (${suite.platform.toUpperCase()}, ${suite.testCases.length} 个用例)`,
               }))}
               allowClear
             />
@@ -118,14 +236,23 @@ export default function TestRun() {
           <Col span={8}>
             <Select
               style={{ width: '100%' }}
-              placeholder="选择设备（移动端可选）"
+              placeholder="选择设备（移动端必选）"
               value={selectedDevice}
               onChange={setSelectedDevice}
               options={devices
-                .filter((d) => d.status === 'connected')
-                .map((d) => ({ value: d.id, label: `${d.name} (${d.platform})` }))}
+                .filter((device) => device.status === 'connected')
+                .filter((device) =>
+                  selectedSuiteObject?.platform ? device.platform === selectedSuiteObject.platform : true,
+                )
+                .map((device) => ({
+                  value: device.id,
+                  label:
+                    device.platform === 'ios'
+                      ? `${device.name} (${device.platform}, ${device.wdaHost ?? 'localhost'}:${device.wdaPort ?? 8100})`
+                      : `${device.name} (${device.platform})`,
+                }))}
               allowClear
-              disabled={selectedCaseObj?.platform === 'web'}
+              disabled={selectedSuiteObject?.platform === 'web' || !selectedSuiteObject}
             />
           </Col>
           <Col span={8}>
@@ -139,23 +266,54 @@ export default function TestRun() {
             </Button>
           </Col>
         </Row>
+
+        {selectedSuiteObject ? (
+          <div style={{ marginTop: 16 }}>
+            <Text type="secondary">套件用例顺序：</Text>
+            <div style={{ marginTop: 8 }}>
+              {selectedSuiteObject.testCases.map((item, index) => (
+                <Tag key={item.id} color={platformColors[item.platform]}>
+                  {index + 1}. {item.name}
+                </Tag>
+              ))}
+            </div>
+          </div>
+        ) : null}
       </Card>
 
       <Card
         title="执行记录"
         extra={
-          <Button icon={<ReloadOutlined />} onClick={refreshRuns}>
+          <Button icon={<ReloadOutlined />} onClick={fetchRuns}>
             刷新
           </Button>
         }
       >
         <Table
-          dataSource={[...runs].reverse()}
+          dataSource={runs}
           columns={columns}
           rowKey="id"
           pagination={{ pageSize: 15 }}
+          expandable={{
+            expandedRowRender: (record: TestRun) => (
+              <Table
+                dataSource={record.items}
+                columns={itemColumns}
+                rowKey="id"
+                pagination={false}
+                size="small"
+              />
+            ),
+            rowExpandable: (record: TestRun) => record.items.length > 0,
+          }}
         />
       </Card>
     </Space>
   );
 }
+
+const platformColors: Record<string, string> = {
+  web: 'blue',
+  android: 'green',
+  ios: 'purple',
+};

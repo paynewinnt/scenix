@@ -4,6 +4,7 @@ import { Layout, Menu, theme } from 'antd';
 import {
   DashboardOutlined,
   FileTextOutlined,
+  AppstoreOutlined,
   PlayCircleOutlined,
   BarChartOutlined,
   MobileOutlined,
@@ -14,6 +15,7 @@ const { Header, Sider, Content } = Layout;
 const menuItems = [
   { key: '/dashboard', icon: <DashboardOutlined />, label: '仪表盘' },
   { key: '/test-cases', icon: <FileTextOutlined />, label: '测试用例' },
+  { key: '/test-suites', icon: <AppstoreOutlined />, label: '测试套件' },
   { key: '/test-run', icon: <PlayCircleOutlined />, label: '执行测试' },
   { key: '/reports', icon: <BarChartOutlined />, label: '测试报告' },
   { key: '/devices', icon: <MobileOutlined />, label: '设备管理' },

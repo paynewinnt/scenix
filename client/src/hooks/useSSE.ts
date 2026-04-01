@@ -22,8 +22,11 @@ export function useSSE({ events, enabled = true }: UseSSEOptions): void {
     const url = '/api/test-runs/events';
     let es: EventSource | null = null;
     let reconnectAttempt = 0;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let disposed = false;
 
     function connect() {
+      if (disposed) return;
       es = new EventSource(url);
 
       es.addEventListener('connected', () => {
@@ -54,13 +57,18 @@ export function useSSE({ events, enabled = true }: UseSSEOptions): void {
         reconnectAttempt++;
         // Exponential backoff: 1s, 2s, 4s, 8s, max 30s
         const delay = Math.min(1000 * 2 ** (reconnectAttempt - 1), 30_000);
-        setTimeout(connect, delay);
+        reconnectTimer = setTimeout(connect, delay);
       };
     }
 
     connect();
 
     return () => {
+      disposed = true;
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+      }
       es?.close();
       es = null;
     };

@@ -12,7 +12,7 @@ import { describe, it, beforeAll, afterAll } from 'vitest';
 import { createIOSAgent } from 'core';
 
 describe('iOS Settings', () => {
-  let agent: Awaited<ReturnType<typeof createIOSAgent>>;
+  let agent: Awaited<ReturnType<typeof createIOSAgent>> | undefined;
 
   beforeAll(async () => {
     agent = await createIOSAgent({
@@ -22,7 +22,7 @@ describe('iOS Settings', () => {
   });
 
   afterAll(async () => {
-    await agent.destroy();
+    await agent?.destroy();
   });
 
   it('should navigate to Wi-Fi settings', async () => {

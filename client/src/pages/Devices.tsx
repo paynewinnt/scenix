@@ -62,6 +62,12 @@ export default function Devices() {
     },
     { title: 'UDID', dataIndex: 'udid', key: 'udid' },
     {
+      title: 'WDA',
+      key: 'wda',
+      render: (_: unknown, record: Device) =>
+        record.platform === 'ios' ? `${record.wdaHost ?? 'localhost'}:${record.wdaPort ?? 8100}` : '-',
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',

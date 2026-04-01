@@ -11,7 +11,7 @@ import { describe, it, beforeAll, afterAll } from 'vitest';
 import { createWebAgent } from 'core';
 
 describe('Web Login Flow', () => {
-  let agent: Awaited<ReturnType<typeof createWebAgent>>;
+  let agent: Awaited<ReturnType<typeof createWebAgent>> | undefined;
 
   beforeAll(async () => {
     agent = await createWebAgent({
@@ -21,7 +21,7 @@ describe('Web Login Flow', () => {
   });
 
   afterAll(async () => {
-    await agent.destroy();
+    await agent?.destroy();
   });
 
   it('should login with valid credentials', async () => {

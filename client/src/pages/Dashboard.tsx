@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Row, Col, Card, Statistic, Table, Tag } from 'antd';
 import {
   CheckCircleOutlined,
@@ -7,6 +7,8 @@ import {
   FileTextOutlined,
 } from '@ant-design/icons';
 import { testRunApi, testCaseApi, type TestRun, type TestCase } from '../services/api';
+import { useSSE } from '../hooks/useSSE';
+import { formatChinaDateTime } from '../utils/datetime';
 
 const statusColors: Record<string, string> = {
   passed: 'green',
@@ -28,10 +30,36 @@ export default function Dashboard() {
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [cases, setCases] = useState<TestCase[]>([]);
 
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     testRunApi.list().then(setRuns).catch(() => {});
     testCaseApi.list().then(setCases).catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // SSE: real-time updates for test runs
+  useSSE({
+    events: {
+      'test-run:created': (data) => {
+        setRuns((prev) => [data as TestRun, ...prev]);
+      },
+      'test-run:updated': (data) => {
+        const updated = data as TestRun;
+        setRuns((prev) =>
+          prev.map((r) => (r.id === updated.id ? updated : r)),
+        );
+      },
+      'test-run:deleted': (data) => {
+        const deleted = data as { id: string };
+        setRuns((prev) => prev.filter((item) => item.id !== deleted.id));
+      },
+      reconnect: () => {
+        fetchData();
+      },
+    },
+  });
 
   const totalCases = cases.length;
   const totalRuns = runs.length;
@@ -39,10 +67,10 @@ export default function Dashboard() {
   const failedRuns = runs.filter((r) => r.status === 'failed').length;
   const passRate = totalRuns > 0 ? ((passedRuns / totalRuns) * 100).toFixed(1) : '0';
 
-  const recentRuns = [...runs].reverse().slice(0, 10);
+  const recentRuns = runs.slice(0, 10);
 
   const columns = [
-    { title: '用例名称', dataIndex: 'testCaseName', key: 'testCaseName' },
+    { title: '套件名称', dataIndex: 'suiteName', key: 'suiteName' },
     { title: '平台', dataIndex: 'platform', key: 'platform', render: (v: string) => v.toUpperCase() },
     {
       title: '状态',
@@ -50,7 +78,12 @@ export default function Dashboard() {
       key: 'status',
       render: (s: string) => <Tag color={statusColors[s]}>{statusLabels[s] ?? s}</Tag>,
     },
-    { title: '开始时间', dataIndex: 'startedAt', key: 'startedAt' },
+    {
+      title: '开始时间',
+      dataIndex: 'startedAt',
+      key: 'startedAt',
+      render: (value: string) => formatChinaDateTime(value),
+    },
   ];
 
   return (

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { addClient, removeClient } from '../sse/event-bus.js';
 
-export const eventsRouter = Router();
+export const eventsRouter: Router = Router();
 
 /**
  * SSE endpoint for real-time test run updates.

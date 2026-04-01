@@ -2,10 +2,10 @@
  * Device Manager - Discovers and manages connected Android/iOS devices
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
-const execAsync = promisify(exec);
+const execFileAsync = promisify(execFile);
 
 export interface DeviceInfo {
   udid: string;
@@ -37,7 +37,7 @@ export class DeviceManager {
   private async discoverAndroid(): Promise<DeviceInfo[]> {
     try {
       const adbPath = process.env.MIDSCENE_ADB_PATH ?? 'adb';
-      const { stdout } = await execAsync(`${adbPath} devices -l`);
+      const { stdout } = await execFileAsync(adbPath, ['devices', '-l']);
       const lines = stdout.trim().split('\n').slice(1);
       return lines
         .filter((line) => line.includes('device'))
@@ -58,10 +58,12 @@ export class DeviceManager {
   }
 
   private async discoverIOS(): Promise<DeviceInfo[]> {
+    if (process.platform !== 'darwin') {
+      return [];
+    }
+
     try {
-      const { stdout } = await execAsync(
-        'xcrun xctrace list devices 2>/dev/null || idevice_id -l 2>/dev/null',
-      );
+      const stdout = await this.readIOSDevices();
       return stdout
         .trim()
         .split('\n')
@@ -74,6 +76,16 @@ export class DeviceManager {
         }));
     } catch {
       return [];
+    }
+  }
+
+  private async readIOSDevices(): Promise<string> {
+    try {
+      const { stdout } = await execFileAsync('xcrun', ['xctrace', 'list', 'devices']);
+      return stdout;
+    } catch {
+      const { stdout } = await execFileAsync('idevice_id', ['-l']);
+      return stdout;
     }
   }
 }

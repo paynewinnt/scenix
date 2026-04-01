@@ -2,11 +2,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const coreSrcDir = path.dirname(fileURLToPath(import.meta.url));
-const envPath = path.resolve(coreSrcDir, '../../.env');
+const setupDir = path.dirname(fileURLToPath(import.meta.url));
+const envPath = path.resolve(setupDir, '../.env');
 
 if (existsSync(envPath)) {
   const envText = readFileSync(envPath, 'utf8');
+
   for (const line of envText.split('\n')) {
     const trimmed = line.trim();
     if (!trimmed || trimmed.startsWith('#')) continue;
@@ -26,13 +27,3 @@ if (existsSync(envPath)) {
 if (process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT === undefined) {
   process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT = '3';
 }
-
-export { createWebAgent } from './agents/web-agent.js';
-export { createAndroidAgent } from './agents/android-agent.js';
-export { createIOSAgent } from './agents/ios-agent.js';
-export { createAppiumAgent } from './agents/appium-agent.js';
-export { DeviceManager } from './device/device-manager.js';
-export { TestRunner } from './runner/test-runner.js';
-export type { TestCaseInput, TestResult } from './runner/test-runner.js';
-export { getAIConfig, validateAIConfig, PROVIDER_PRESETS } from './config/ai-config.js';
-export type { AIModelConfig, ProviderPreset } from './config/ai-config.js';

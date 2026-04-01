@@ -1,5 +1,5 @@
 {
-  "name": "ai-test-platform",
+  "name": "scenix",
   "version": "1.0.0",
   "private": true,
   "description": "AI-driven UI automation testing platform powered by Midscene.js and Appium",
@@ -8,10 +8,21 @@
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
     "build": "pnpm --filter client build && pnpm --filter server build",
-    "test": "vitest run",
-    "test:web": "vitest run --project web",
-    "test:android": "vitest run --project android",
-    "test:ios": "vitest run --project ios"
+    "test": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests",
+    "test:web": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/web/login.test.ts",
+    "test:android": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/android/ebay-search.test.ts",
+    "test:ios": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/ios/settings.test.ts"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ],
+    "peerDependencyRules": {
+      "allowAny": [
+        "@playwright/test"
+      ]
+    }
   },
   "devDependencies": {
     "concurrently": "^9.1.0",

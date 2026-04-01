@@ -10,6 +10,14 @@ export default defineConfig({
         target: 'http://localhost:3001',
         changeOrigin: true,
       },
+      '/reports': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
+      '/midscene_run': {
+        target: 'http://localhost:3001',
+        changeOrigin: true,
+      },
     },
   },
 });

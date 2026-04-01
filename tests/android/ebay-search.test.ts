@@ -12,7 +12,7 @@ import { describe, it, beforeAll, afterAll, expect } from 'vitest';
 import { createAndroidAgent } from 'core';
 
 describe('Android eBay Search', () => {
-  let agent: Awaited<ReturnType<typeof createAndroidAgent>>;
+  let agent: Awaited<ReturnType<typeof createAndroidAgent>> | undefined;
 
   beforeAll(async () => {
     agent = await createAndroidAgent({
@@ -21,7 +21,7 @@ describe('Android eBay Search', () => {
   });
 
   afterAll(async () => {
-    await agent.destroy();
+    await agent?.destroy();
   });
 
   it('should search for wireless headphones on eBay', async () => {
