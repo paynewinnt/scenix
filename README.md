@@ -26,24 +26,6 @@ Scenix 支持使用自然语言编写测试用例，将多个用例编排为测�
 - Cross-platform path handling for Windows/macOS  
   面向 Windows / macOS 的跨平台路径处理
 
-## Screenshots | 页面截图
-
-UI screenshots placeholder:
-
-```text
-[ Dashboard Screenshot ]
-[ Test Suites Screenshot ]
-[ Reports Screenshot ]
-```
-
-可替换为真实图片，例如：
-
-```md
-![Dashboard](./docs/images/dashboard.png)
-![Suites](./docs/images/test-suites.png)
-![Reports](./docs/images/reports.png)
-```
-
 ## Architecture | 架构图
 
 ```mermaid
