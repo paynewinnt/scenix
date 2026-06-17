@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { applyAIConfigDefaultsToEnv } from './config/ai-config.js';
 
 const coreSrcDir = path.dirname(fileURLToPath(import.meta.url));
 const envPath = path.resolve(coreSrcDir, '../../.env');
@@ -27,6 +28,8 @@ if (process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT === undefined) {
   process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT = '3';
 }
 
+applyAIConfigDefaultsToEnv();
+
 export { createWebAgent } from './agents/web-agent.js';
 export { createAndroidAgent } from './agents/android-agent.js';
 export { createIOSAgent } from './agents/ios-agent.js';
@@ -34,5 +37,18 @@ export { createAppiumAgent } from './agents/appium-agent.js';
 export { DeviceManager } from './device/device-manager.js';
 export { TestRunner } from './runner/test-runner.js';
 export type { TestCaseInput, TestResult } from './runner/test-runner.js';
-export { getAIConfig, validateAIConfig, PROVIDER_PRESETS } from './config/ai-config.js';
-export type { AIModelConfig, ProviderPreset } from './config/ai-config.js';
+export {
+  applyAIConfigDefaultsToEnv,
+  getAIConfig,
+  getAIConfigDiagnostics,
+  validateAIConfig,
+  PROVIDER_PRESETS,
+} from './config/ai-config.js';
+export type { AIModelConfig, AIConfigDiagnostics, ProviderPreset } from './config/ai-config.js';
+export { getRuntimeReadinessReport, resolveAndroidSdkEnvironment } from './config/runtime-readiness.js';
+export type {
+  AndroidSdkEnvironment,
+  ReadinessCheck,
+  ReadinessStatus,
+  RuntimeReadinessReport,
+} from './config/runtime-readiness.js';

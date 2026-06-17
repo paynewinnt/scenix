@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { applyRuntimeDeviceStatus } from './run-coordinator.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -14,6 +15,11 @@ export interface Device {
 }
 
 let cachedDevices: Device[] = [];
+
+type DeviceQueryOptions = {
+  forceRefresh?: boolean;
+  includeRuntimeStatus?: boolean;
+};
 
 function getIOSWdaPorts(): number[] {
   const raw = process.env.IOS_WDA_PORTS ?? process.env.IOS_WDA_PORT ?? '8100';
@@ -98,21 +104,25 @@ async function discoverIOSDeviceLines(): Promise<string[]> {
   }
 }
 
-export async function refreshDevices(): Promise<Device[]> {
+export async function refreshDevices(options?: { includeRuntimeStatus?: boolean }): Promise<Device[]> {
   const [android, ios] = await Promise.all([discoverAndroidDevices(), discoverIOSDevices()]);
   cachedDevices = [...android, ...ios];
-  return cachedDevices;
+  return options?.includeRuntimeStatus === false ? cachedDevices : applyRuntimeDeviceStatus(cachedDevices);
 }
 
-export async function getDevices(forceRefresh = false): Promise<Device[]> {
-  if (forceRefresh || cachedDevices.length === 0) {
-    return refreshDevices();
+export async function getDevices(options?: DeviceQueryOptions): Promise<Device[]> {
+  if (options?.forceRefresh || cachedDevices.length === 0) {
+    return refreshDevices({ includeRuntimeStatus: options?.includeRuntimeStatus });
   }
 
-  return cachedDevices;
+  return options?.includeRuntimeStatus === false ? cachedDevices : applyRuntimeDeviceStatus(cachedDevices);
 }
 
-export async function getDeviceById(id: string): Promise<Device | undefined> {
-  const devices = await getDevices();
+export async function getDeviceById(id: string, options?: DeviceQueryOptions): Promise<Device | undefined> {
+  const devices = await getDevices(options);
   return devices.find((device) => device.id === id);
+}
+
+export function peekCachedDevices(): Device[] {
+  return [...cachedDevices];
 }

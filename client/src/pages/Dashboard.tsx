@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Row, Col, Card, Statistic, Table, Tag } from 'antd';
+import { Row, Col, Card, Statistic, Table, Tag, Button, Space } from 'antd';
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   PlayCircleOutlined,
   FileTextOutlined,
+  ReloadOutlined,
 } from '@ant-design/icons';
-import { testRunApi, testCaseApi, type TestRun, type TestCase } from '../services/api';
+import {
+  readinessApi,
+  testRunApi,
+  testCaseApi,
+  type RuntimeReadinessReport,
+  type TestRun,
+  type TestCase,
+} from '../services/api';
 import { useSSE } from '../hooks/useSSE';
 import { formatChinaDateTime } from '../utils/datetime';
 
 const statusColors: Record<string, string> = {
   passed: 'green',
   failed: 'red',
+  queued: 'purple',
   running: 'blue',
   pending: 'default',
   error: 'orange',
@@ -21,6 +30,7 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   passed: '通过',
   failed: '失败',
+  queued: '排队中',
   running: '运行中',
   pending: '等待中',
   error: '异常',
@@ -29,15 +39,23 @@ const statusLabels: Record<string, string> = {
 export default function Dashboard() {
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [cases, setCases] = useState<TestCase[]>([]);
+  const [readiness, setReadiness] = useState<RuntimeReadinessReport | null>(null);
+  const [readinessLoading, setReadinessLoading] = useState(false);
 
   const fetchData = useCallback(() => {
     testRunApi.list().then(setRuns).catch(() => {});
     testCaseApi.list().then(setCases).catch(() => {});
   }, []);
 
+  const fetchReadiness = useCallback(() => {
+    setReadinessLoading(true);
+    readinessApi.get().then(setReadiness).catch(() => {}).finally(() => setReadinessLoading(false));
+  }, []);
+
   useEffect(() => {
     fetchData();
-  }, [fetchData]);
+    fetchReadiness();
+  }, [fetchData, fetchReadiness]);
 
   // SSE: real-time updates for test runs
   useSSE({
@@ -57,6 +75,7 @@ export default function Dashboard() {
       },
       reconnect: () => {
         fetchData();
+        fetchReadiness();
       },
     },
   });
@@ -68,6 +87,18 @@ export default function Dashboard() {
   const passRate = totalRuns > 0 ? ((passedRuns / totalRuns) * 100).toFixed(1) : '0';
 
   const recentRuns = runs.slice(0, 10);
+  const readinessStatusColors: Record<string, string> = {
+    ready: 'green',
+    warning: 'orange',
+    error: 'red',
+    unsupported: 'default',
+  };
+  const readinessStatusLabels: Record<string, string> = {
+    ready: '已就绪',
+    warning: '需关注',
+    error: '未就绪',
+    unsupported: '不支持',
+  };
 
   const columns = [
     { title: '套件名称', dataIndex: 'suiteName', key: 'suiteName' },
@@ -136,6 +167,38 @@ export default function Dashboard() {
               pagination={false}
               size="small"
             />
+          </Card>
+        </Col>
+      </Row>
+
+      <Row gutter={16} style={{ marginTop: 24 }}>
+        <Col span={24}>
+          <Card
+            title="运行环境"
+            extra={
+              <Button icon={<ReloadOutlined />} onClick={fetchReadiness} loading={readinessLoading}>
+                刷新检查
+              </Button>
+            }
+          >
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              {readiness?.checks.map((check) => (
+                <Card key={check.key} size="small" bodyStyle={{ padding: 16 }}>
+                  <Space direction="vertical" size={6} style={{ width: '100%' }}>
+                    <Space style={{ justifyContent: 'space-between', width: '100%' }}>
+                      <span style={{ fontWeight: 600 }}>{check.label}</span>
+                      <Tag color={readinessStatusColors[check.status]}>
+                        {readinessStatusLabels[check.status] ?? check.status}
+                      </Tag>
+                    </Space>
+                    <span>{check.summary}</span>
+                    <div style={{ color: '#8c8c8c', fontSize: 12 }}>
+                      {check.details.slice(0, 3).join(' · ')}
+                    </div>
+                  </Space>
+                </Card>
+              ))}
+            </Space>
           </Card>
         </Col>
       </Row>

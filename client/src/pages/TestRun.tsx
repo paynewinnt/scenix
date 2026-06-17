@@ -15,6 +15,7 @@ import {
 import { DeleteOutlined, PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons';
 import {
   deviceApi,
+  getApiErrorMessage,
   testRunApi,
   testSuiteApi,
   type Device,
@@ -23,12 +24,14 @@ import {
 } from '../services/api';
 import { useSSE } from '../hooks/useSSE';
 import { formatChinaDateTime } from '../utils/datetime';
+import { buildQueueStatusSummary } from './test-run-queue-utils';
 
 const { Text } = Typography;
 
 const statusColors: Record<string, string> = {
   passed: 'green',
   failed: 'red',
+  queued: 'purple',
   running: 'blue',
   pending: 'default',
   error: 'orange',
@@ -37,6 +40,7 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   passed: '通过',
   failed: '失败',
+  queued: '排队中',
   running: '运行中',
   pending: '等待中',
   error: '异常',
@@ -67,18 +71,27 @@ export default function TestRunPage() {
   useSSE({
     events: {
       'test-run:created': (data) => {
-        setRuns((prev) => [data as TestRun, ...prev]);
+        const created = data as TestRun;
+        setRuns((prev) => [created, ...prev]);
+        if (created.deviceId) {
+          deviceApi.list().then(setDevices).catch(() => {});
+        }
       },
       'test-run:updated': (data) => {
         const updated = data as TestRun;
         setRuns((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+        if (updated.deviceId && ['queued', 'passed', 'failed', 'error'].includes(updated.status)) {
+          deviceApi.list().then(setDevices).catch(() => {});
+        }
       },
       'test-run:deleted': (data) => {
         const deleted = data as { id: string };
         setRuns((prev) => prev.filter((item) => item.id !== deleted.id));
+        deviceApi.list().then(setDevices).catch(() => {});
       },
       reconnect: () => {
         fetchRuns();
+        deviceApi.list().then(setDevices).catch(() => {});
       },
     },
   });
@@ -101,12 +114,11 @@ export default function TestRunPage() {
 
     setStarting(true);
     try {
-      await testRunApi.start(selectedSuite, selectedDevice);
-      message.success('测试套件已启动');
+      const createdRun = await testRunApi.start(selectedSuite, selectedDevice);
+      deviceApi.list().then(setDevices).catch(() => {});
+      message.success(createdRun.status === 'queued' ? '测试套件已加入队列' : '测试套件已启动');
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : '启动测试套件失败';
-      message.error(errorMessage);
+      message.error(getApiErrorMessage(error, '启动测试套件失败'));
     } finally {
       setStarting(false);
     }
@@ -140,6 +152,11 @@ export default function TestRunPage() {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => <Tag color={statusColors[status]}>{statusLabels[status] ?? status}</Tag>,
+    },
+    {
+      title: '排队信息',
+      key: 'queue',
+      render: (_: unknown, record: TestRun) => buildQueueStatusSummary(record),
     },
     {
       title: '开始时间',
@@ -240,7 +257,7 @@ export default function TestRunPage() {
               value={selectedDevice}
               onChange={setSelectedDevice}
               options={devices
-                .filter((device) => device.status === 'connected')
+                .filter((device) => device.status !== 'disconnected')
                 .filter((device) =>
                   selectedSuiteObject?.platform ? device.platform === selectedSuiteObject.platform : true,
                 )
@@ -248,8 +265,8 @@ export default function TestRunPage() {
                   value: device.id,
                   label:
                     device.platform === 'ios'
-                      ? `${device.name} (${device.platform}, ${device.wdaHost ?? 'localhost'}:${device.wdaPort ?? 8100})`
-                      : `${device.name} (${device.platform})`,
+                      ? `${device.name} (${device.platform}, ${device.wdaHost ?? 'localhost'}:${device.wdaPort ?? 8100}${device.status === 'busy' ? ', 占用中可排队' : ''})`
+                      : `${device.name} (${device.platform}${device.status === 'busy' ? ', 占用中可排队' : ''})`,
                 }))}
               allowClear
               disabled={selectedSuiteObject?.platform === 'web' || !selectedSuiteObject}

@@ -7,6 +7,7 @@
 
 import { existsSync } from 'node:fs';
 import path from 'node:path';
+import { resolveAndroidSdkEnvironment } from '../config/runtime-readiness.js';
 
 export interface AndroidAgentOptions {
   udid?: string;
@@ -59,7 +60,8 @@ function ensureAndroidSdkEnv(): void {
     return;
   }
 
-  const sdkRoot = detectAndroidSdkRoot();
+  const sdkEnvironment = resolveAndroidSdkEnvironment();
+  const sdkRoot = sdkEnvironment.sdkRoot;
   if (!sdkRoot) {
     return;
   }
@@ -75,43 +77,6 @@ function ensureAndroidSdkEnv(): void {
       process.env.PATH = [platformToolsDir, ...pathEntries].join(path.delimiter);
     }
   }
-}
-
-function detectAndroidSdkRoot(): string | null {
-  const fromAdbPath = sdkRootFromAdbPath(process.env.MIDSCENE_ADB_PATH);
-  if (fromAdbPath) {
-    return fromAdbPath;
-  }
-
-  const home = process.env.HOME ?? process.env.USERPROFILE;
-  const candidates = [
-    home ? path.join(home, 'Android', 'Sdk') : null,
-    home ? path.join(home, 'Library', 'Android', 'sdk') : null,
-    process.platform === 'win32' ? path.join(process.env.LOCALAPPDATA ?? '', 'Android', 'Sdk') : null,
-  ].filter((value): value is string => Boolean(value));
-
-  return candidates.find((candidate) => existsSync(path.join(candidate, 'platform-tools', adbExecutableName()))) ?? null;
-}
-
-function sdkRootFromAdbPath(adbPath?: string): string | null {
-  if (!adbPath) {
-    return null;
-  }
-
-  const normalized = path.resolve(adbPath);
-  const fileName = path.basename(normalized).toLowerCase();
-  const expectedNames = new Set(['adb', 'adb.exe']);
-  if (!expectedNames.has(fileName)) {
-    return null;
-  }
-
-  const parentDir = path.dirname(normalized);
-  if (path.basename(parentDir).toLowerCase() !== 'platform-tools') {
-    return null;
-  }
-
-  const sdkRoot = path.dirname(parentDir);
-  return existsSync(path.join(parentDir, adbExecutableName())) ? sdkRoot : null;
 }
 
 function adbExecutableName(): string {

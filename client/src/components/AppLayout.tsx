@@ -26,6 +26,7 @@ export default function AppLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { token } = theme.useToken();
+  const selectedKey = location.pathname.startsWith('/reports/') ? '/reports' : location.pathname;
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
@@ -54,7 +55,7 @@ export default function AppLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[selectedKey]}
           items={menuItems}
           onClick={({ key }) => navigate(key)}
         />

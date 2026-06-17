@@ -5,6 +5,7 @@ import TestCases from './pages/TestCases';
 import TestSuites from './pages/TestSuites';
 import TestRun from './pages/TestRun';
 import Reports from './pages/Reports';
+import ReportDetail from './pages/ReportDetail';
 import Devices from './pages/Devices';
 
 export default function App() {
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="test-suites" element={<TestSuites />} />
         <Route path="test-run" element={<TestRun />} />
         <Route path="reports" element={<Reports />} />
+        <Route path="reports/:runId" element={<ReportDetail />} />
         <Route path="devices" element={<Devices />} />
       </Route>
     </Routes>
