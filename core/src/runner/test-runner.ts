@@ -10,6 +10,8 @@ import { createWebAgent } from '../agents/web-agent.js';
 import { createAndroidAgent } from '../agents/android-agent.js';
 import { createIOSAgent } from '../agents/ios-agent.js';
 
+class StepExecutionError extends Error {}
+
 export interface TestCaseInput {
   id: string;
   name: string;
@@ -49,7 +51,7 @@ export class TestRunner {
     } catch (err) {
       return {
         testCaseId: testCase.id,
-        status: 'failed',
+        status: err instanceof StepExecutionError ? 'failed' : 'error',
         startedAt,
         finishedAt: new Date().toISOString(),
         errorMessage: err instanceof Error ? err.message : String(err),
@@ -114,7 +116,7 @@ export class TestRunner {
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        throw new Error(
+        throw new StepExecutionError(
           `步骤执行失败，最多已尝试 3 次重规划：${step}${message ? `。失败原因：${message}` : ''}`,
         );
       }

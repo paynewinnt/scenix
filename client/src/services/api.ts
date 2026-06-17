@@ -5,6 +5,25 @@ const api = axios.create({
   timeout: 30_000,
 });
 
+export function getApiErrorMessage(error: unknown, fallback: string): string {
+  if (axios.isAxiosError(error)) {
+    const responseMessage = error.response?.data?.error;
+    if (typeof responseMessage === 'string' && responseMessage.trim()) {
+      return responseMessage;
+    }
+
+    if (typeof error.message === 'string' && error.message.trim()) {
+      return error.message;
+    }
+  }
+
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
+
 // ---- Test Cases ----
 
 export interface TestCase {
@@ -56,13 +75,20 @@ export interface TestRunItem {
   testCaseId: string;
   testCaseName: string;
   platform: string;
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error';
+  status: 'queued' | 'pending' | 'running' | 'passed' | 'failed' | 'error';
   startedAt: string;
   finishedAt?: string;
   reportPath?: string;
   errorMessage?: string;
   sortOrder: number;
 }
+
+export type RunQueueBlockedReason =
+  | 'awaiting_dispatch'
+  | 'waiting_web_slot'
+  | 'waiting_device_busy'
+  | 'waiting_same_resource_queue'
+  | 'device_disconnected';
 
 export interface TestRun {
   id: string;
@@ -77,11 +103,15 @@ export interface TestRun {
     wdaHost?: string;
     wdaPort?: number;
   };
-  status: 'pending' | 'running' | 'passed' | 'failed' | 'error';
+  status: 'queued' | 'pending' | 'running' | 'passed' | 'failed' | 'error';
+  queuedAt?: string;
+  dispatchedAt?: string;
   startedAt: string;
   finishedAt?: string;
   reportPath?: string;
   errorMessage?: string;
+  queuePosition?: number;
+  blockedReason?: RunQueueBlockedReason;
   items: TestRunItem[];
 }
 
@@ -108,4 +138,24 @@ export interface Device {
 export const deviceApi = {
   list: () => api.get<Device[]>('/devices').then((r) => r.data),
   refresh: () => api.post<Device[]>('/devices/refresh').then((r) => r.data),
+};
+
+// ---- Runtime Readiness ----
+
+export interface ReadinessCheck {
+  key: 'ai' | 'web' | 'android' | 'ios';
+  label: string;
+  status: 'ready' | 'warning' | 'error' | 'unsupported';
+  summary: string;
+  details: string[];
+}
+
+export interface RuntimeReadinessReport {
+  generatedAt: string;
+  overallStatus: 'ready' | 'warning' | 'error';
+  checks: ReadinessCheck[];
+}
+
+export const readinessApi = {
+  get: () => api.get<RuntimeReadinessReport>('/readiness').then((r) => r.data),
 };

@@ -2,9 +2,15 @@
 
 [中文说明](./README.md)
 
+[![CI](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml/badge.svg)](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.en.md)
+
 AI-driven UI automation testing platform built on Midscene.js and Appium.
 
 Scenix lets you write natural-language test cases, organize them into suites, execute them across Web / Android / iOS, and review suite-level reports with per-case drill-down.
+
+Scenix is open source under the [MIT License](./LICENSE). Everyone may use, copy, modify, and distribute the code, and contributions through Issues and Pull Requests are welcome.
 
 > Windows and macOS are supported for deployment. iOS execution requires macOS.
 
@@ -12,10 +18,12 @@ Scenix lets you write natural-language test cases, organize them into suites, ex
 
 - Natural-language UI testing
 - Suite-based execution model
+- `queued` execution queue with resource-aware scheduling
 - Web / Android / iOS support
 - Real-time execution updates via SSE
 - SQLite persistence
-- Suite report + per-case report
+- Suite report + per-case report + in-app detail page
+- Runtime readiness diagnostics
 - Cross-platform path handling for Windows/macOS
 
 ## Architecture
@@ -39,7 +47,9 @@ flowchart LR
 
 - Test cases are authored individually, but execution starts from a suite.
 - A suite contains one or more cases of the same platform.
-- Reports are shown at suite level and can be expanded to child case reports.
+- New executions first enter `queued`, then the server-side scheduler dispatches them when resources are available.
+- The `TestRun` page shows per-resource queue position and the current blocking reason for queued runs.
+- Reports are shown at suite level and can be expanded to child case reports or opened in the in-app detail page.
 
 ## Core Concepts
 
@@ -87,14 +97,14 @@ A run is always started from a suite, not from a standalone case.
 ### Requirements
 
 - Node.js 18+
-- pnpm 8+
+- pnpm 9+
 - Windows 10/11 or macOS 13+
 - macOS + Xcode + WebDriverAgent for iOS execution
 
 ### Install
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/paynewinnt/scenix.git
 cd scenix
 pnpm install
 ```
@@ -109,13 +119,13 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-At minimum, configure:
+Recommended minimum configuration:
 
 ```env
 MIDSCENE_MODEL_BASE_URL=...
 MIDSCENE_MODEL_API_KEY=...
 MIDSCENE_MODEL_NAME=...
-MIDSCENE_MODEL_FAMILY=...
+# MIDSCENE_MODEL_FAMILY=...
 ```
 
 Useful options:
@@ -131,6 +141,7 @@ Notes:
 - Android SDK env is inferred when possible; it does not need to be hardcoded into `.env`
 - `MIDSCENE_REPLANNING_CYCLE_LIMIT` defaults to `3`
 - UI time display is normalized to China time
+- If only `OPENAI_API_KEY` is set, runtime defaults are mirrored into the Midscene env vars automatically
 
 ### Run
 
@@ -157,6 +168,7 @@ Default endpoints:
 3. Run the suite
 4. Watch live updates
 5. Open suite report and child case reports
+6. Review runtime diagnostics in the dashboard or `/api/readiness`
 
 ## Reports
 
@@ -165,6 +177,7 @@ Scenix stores reports under a single canonical run directory.
 - Default report directory: `./reports/midscene/report`
 - Single-case suite: suite report points directly to the case report
 - Multi-case suite: suite report opens a generated summary page with links to child reports
+- Frontend report detail route: `/reports/:runId`
 
 ## API Overview
 
@@ -205,6 +218,12 @@ Scenix stores reports under a single canonical run directory.
 | GET | `/api/devices` |
 | POST | `/api/devices/refresh` |
 
+### Runtime Readiness
+
+| Method | Path |
+|---|---|
+| GET | `/api/readiness` |
+
 ## Storage
 
 - Database: `./server/data/app.db`
@@ -217,10 +236,22 @@ Scenix stores reports under a single canonical run directory.
 pnpm dev
 pnpm build
 pnpm test
+pnpm test:unit
+pnpm test:live
+pnpm test:all
 pnpm test:web
 pnpm test:android
 pnpm test:ios
 ```
+
+## Contributing
+
+Every GitHub user may fork this repository, open an Issue, and submit a Pull Request to `master`. To protect the project and its users, maintainers merge external contributions after review and CI rather than granting anonymous direct write access.
+
+- Read the [Contributing Guide](./CONTRIBUTING.en.md) before starting
+- Follow the [Code of Conduct](./CODE_OF_CONDUCT.md) in all project spaces
+- Report vulnerabilities privately under the [Security Policy](./SECURITY.md), not in a public Issue
+- Use [GitHub Issues](https://github.com/paynewinnt/scenix/issues) for bugs and feature proposals
 
 ## Deployment
 
@@ -230,4 +261,4 @@ pnpm test:ios
 
 ## License
 
-Private project. Distribution without authorization is not permitted.
+This project is licensed under the [MIT License](./LICENSE). You may use, copy, modify, merge, publish, and distribute it as long as the original copyright and license notice are retained.

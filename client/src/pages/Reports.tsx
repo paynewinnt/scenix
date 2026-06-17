@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button, Card, Empty, Popconfirm, Table, Tag, message } from 'antd';
 import { DeleteOutlined, EyeOutlined, ReloadOutlined } from '@ant-design/icons';
+import { useNavigate } from 'react-router-dom';
 import { testRunApi, type TestRun, type TestRunItem } from '../services/api';
 import { useSSE } from '../hooks/useSSE';
 import { formatChinaDateTime } from '../utils/datetime';
@@ -8,6 +9,7 @@ import { formatChinaDateTime } from '../utils/datetime';
 const statusColors: Record<string, string> = {
   passed: 'green',
   failed: 'red',
+  queued: 'purple',
   running: 'blue',
   pending: 'default',
   error: 'orange',
@@ -16,12 +18,14 @@ const statusColors: Record<string, string> = {
 const statusLabels: Record<string, string> = {
   passed: '通过',
   failed: '失败',
+  queued: '排队中',
   running: '运行中',
   pending: '等待中',
   error: '异常',
 };
 
 export default function Reports() {
+  const navigate = useNavigate();
   const [runs, setRuns] = useState<TestRun[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -114,7 +118,7 @@ export default function Reports() {
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => window.open(record.reportPath, '_blank')}
+            onClick={() => navigate(`/reports/${record.id}`)}
           >
             查看报告
           </Button>
@@ -168,7 +172,7 @@ export default function Reports() {
           <Button
             size="small"
             icon={<EyeOutlined />}
-            onClick={() => window.open(record.reportPath, '_blank')}
+            onClick={() => navigate(`/reports/${record.testRunId}?itemId=${record.id}`)}
           >
             查看报告
           </Button>

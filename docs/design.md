@@ -1,7 +1,7 @@
 # Scenix 技术设计文档
 
-> 版本: 1.0
-> 更新日期: 2026-01-29
+> 版本: 1.2
+> 更新日期: 2026-04-22
 
 ---
 
@@ -14,10 +14,13 @@ Scenix 是一个基于 Midscene.js 和 Appium 的 AI 驱动 UI 自动化测试�
 | 能力 | 说明 |
 |------|------|
 | 自然语言测试 | 以自然语言（中/英文）描述测试步骤，AI 自动解析并执行 |
-| 多平台支持 | Web（Playwright）、Android（ADB）、iOS（XCTest） |
+| 多平台支持 | Web（Playwright）、Android（ADB）、iOS（WebDriverAgent） |
 | 持久化存储 | SQLite 数据库，服务重启不丢失测试用例和执行记录 |
 | 实时状态推送 | SSE（Server-Sent Events）实时推送测试执行状态到前端 |
 | AI 模型配置 | 集中管理，支持 OpenAI / Qwen / Anthropic 等多 Provider 预设 |
+| 套件执行模型 | 测试用例按套件顺序执行，生成套件总报告与子用例报告 |
+| 队列调度 | 执行记录先进入 `queued`，再由调度器按资源策略出队 |
+| 环境诊断 | `/api/readiness` 汇总 AI、Chromium、Android SDK、iOS/WDA readiness |
 
 ### 1.2 技术栈
 
@@ -48,10 +51,10 @@ Scenix 是一个基于 Midscene.js 和 Appium 的 AI 驱动 UI 自动化测试�
                │              │
 ┌──────────────┴──────────────┴─────────────────────────┐
 │                  Express Server                        │
-│  ┌────────────┐ ┌────────────┐ ┌────────────────────┐ │
-│  │ test-cases │ │ test-runs  │ │ events (SSE)       │ │
-│  │   Router   │ │   Router   │ │   Router           │ │
-│  └─────┬──────┘ └──┬───┬────┘ └────────┬───────────┘ │
+│  ┌────────────┐ ┌────────────┐ ┌────────────┐        │
+│  │ test-cases │ │ test-suites│ │ test-runs  │        │
+│  │   Router   │ │   Router   │ │   Router   │        │
+│  └─────┬──────┘ └─────┬──────┘ └────┬──────┘        │
 │        │           │   │               │              │
 │        ▼           ▼   │               ▼              │
 │  ┌──────────┐          │         ┌──────────────┐     │
@@ -88,9 +91,14 @@ scenix/
 │   │   ├── sse/            # SSE 事件总线
 │   │   ├── routes/         # API 路由
 │   │   │   ├── test-cases.ts
+│   │   │   ├── test-suites.ts
 │   │   │   ├── test-runs.ts
 │   │   │   ├── events.ts
 │   │   │   └── devices.ts
+│   │   ├── services/       # 设备发现、执行协调、报告绑定、运行读模型
+│   │   │   ├── run-coordinator.ts
+│   │   │   ├── run-execution-service.ts
+│   │   │   ├── run-read-service.ts
 │   │   └── index.ts        # 服务入口
 │   └── package.json
 ├── core/                   # 测试执行核心库
@@ -133,29 +141,86 @@ scenix/
 | created_at | TEXT | NOT NULL, DEFAULT | ISO 8601 创建时间 |
 | updated_at | TEXT | NOT NULL, DEFAULT | ISO 8601 更新时间 |
 
+#### test_suites 表
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | TEXT | PRIMARY KEY | UUID v4 |
+| name | TEXT | NOT NULL | 套件名称 |
+| platform | TEXT | NOT NULL, CHECK | 平台: web / android / ios |
+| created_at | TEXT | NOT NULL, DEFAULT | ISO 8601 创建时间 |
+| updated_at | TEXT | NOT NULL, DEFAULT | ISO 8601 更新时间 |
+
+#### test_suite_cases 表
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| suite_id | TEXT | PK/FK | 关联套件 ID |
+| test_case_id | TEXT | PK/FK | 关联用例 ID |
+| sort_order | INTEGER | NOT NULL | 套件内执行顺序 |
+
 #### test_runs 表
 
 | 列名 | 类型 | 约束 | 说明 |
 |------|------|------|------|
 | id | TEXT | PRIMARY KEY | UUID v4 |
-| test_case_id | TEXT | NOT NULL, FK | 关联用例 ID |
-| test_case_name | TEXT | NOT NULL | 冗余用例名称（便于查询展示） |
+| test_case_id | TEXT | NOT NULL, FK | 首个子用例 ID（兼容历史查询） |
+| test_case_name | TEXT | NOT NULL | 首个子用例名称（兼容历史查询） |
+| suite_id | TEXT | NULLABLE | 关联套件 ID |
+| suite_name | TEXT | NULLABLE | 套件名称 |
 | platform | TEXT | NOT NULL | 执行平台 |
 | device_id | TEXT | NULLABLE | 设备 ID（移动端） |
-| status | TEXT | NOT NULL, CHECK | pending / running / passed / failed / error |
-| started_at | TEXT | NOT NULL | 开始时间 |
+| status | TEXT | NOT NULL, CHECK | queued / pending / running / passed / failed / error |
+| queued_at | TEXT | NULLABLE | 入队时间 |
+| dispatched_at | TEXT | NULLABLE | 调度器正式接纳并开始执行的时间 |
+| started_at | TEXT | NOT NULL | 兼容历史字段；新数据与 `dispatched_at` 保持一致 |
 | finished_at | TEXT | NULLABLE | 结束时间 |
 | report_path | TEXT | NULLABLE | 报告文件路径 |
 | error_message | TEXT | NULLABLE | 错误信息 |
+
+#### test_run_items 表
+
+| 列名 | 类型 | 约束 | 说明 |
+|------|------|------|------|
+| id | TEXT | PRIMARY KEY | UUID v4 |
+| test_run_id | TEXT | NOT NULL, FK | 关联 test_runs |
+| test_case_id | TEXT | NOT NULL, FK | 子用例 ID |
+| test_case_name | TEXT | NOT NULL | 子用例名称 |
+| platform | TEXT | NOT NULL | 子用例平台 |
+| status | TEXT | NOT NULL, CHECK | queued / pending / running / passed / failed / error |
+| started_at | TEXT | NOT NULL | 子用例开始时间 |
+| finished_at | TEXT | NULLABLE | 子用例结束时间 |
+| report_path | TEXT | NULLABLE | 子用例报告路径 |
+| error_message | TEXT | NULLABLE | 子用例错误信息 |
+| sort_order | INTEGER | NOT NULL | 套件内顺序 |
+
+#### 读模型补充字段
+
+`TestRun` 为 API 返回对象时，`queued` 任务还会附带两个非持久化字段：
+
+- `queuedAt`: 运行记录入队时间；若是历史数据则回退到兼容时间字段
+- `dispatchedAt`: 调度器接纳时间；若是历史数据则回退到兼容时间字段
+- `queuePosition`: 当前资源上的排队顺位（Web 全局槽位或指定移动设备）
+- `blockedReason`: 当前阻塞原因，例如等待 Web 槽位、等待设备空闲、等待同资源前序任务、设备断开或等待调度器接管
 
 #### 索引
 
 ```sql
 CREATE INDEX idx_runs_case_id ON test_runs(test_case_id);
 CREATE INDEX idx_runs_status  ON test_runs(status);
+CREATE INDEX idx_runs_status_queued_at ON test_runs(status, queued_at);
+CREATE INDEX idx_runs_status_dispatched_at ON test_runs(status, dispatched_at);
+CREATE INDEX idx_suite_cases_suite_id ON test_suite_cases(suite_id);
+CREATE INDEX idx_run_items_run_id ON test_run_items(test_run_id);
 ```
 
-### 3.3 命名映射
+### 3.3 迁移策略
+
+- 使用 `schema_migrations` 表记录已应用的 migration
+- 新库通过顺序执行 migration 直接创建到最新结构
+- 旧库通过幂等 migration 平滑补齐新列、索引和状态约束
+- `queued_at / dispatched_at` 的回填规则会尽量复用已有 `started_at`，保证历史数据可读
+### 3.4 命名映射
 
 数据库列名采用 `snake_case`，API 返回 `camelCase`。通过 `toCamelCase()` 工具函数在路由层统一转换，保持前端接口形状不变。
 
@@ -193,8 +258,8 @@ DB:  error_message →  API: errorMessage
 | 事件名 | 触发时机 | 数据负载 |
 |--------|----------|----------|
 | `connected` | 客户端首次连接 | `{ message: "SSE connected" }` |
-| `test-run:created` | POST 创建新执行记录 | 完整 TestRun 对象 |
-| `test-run:updated` | 状态变更 (running/passed/failed/error) | 完整 TestRun 对象 |
+| `test-run:created` | POST 创建新执行记录（通常是 `queued`） | 完整 TestRun 对象 |
+| `test-run:updated` | 状态变更 (`queued/running/passed/failed/error`) | 完整 TestRun 对象 |
 
 ### 4.3 连接管理
 
@@ -210,11 +275,13 @@ DB:  error_message →  API: errorMessage
   ▼
 POST /api/test-runs
   │
-  ├─ DB INSERT (status: pending)
+  ├─ DB INSERT test_runs (status: queued)
+  ├─ INSERT test_run_items (status: queued)
   ├─ SSE broadcast 'test-run:created'
   ├─ HTTP 201 立即返回
   │
   ▼ (异步，不阻塞 HTTP 响应)
+调度器扫描 queued runs，按资源策略挑选可执行任务
 DB UPDATE (status: running)
 SSE broadcast 'test-run:updated'
   │
@@ -238,25 +305,27 @@ SSE broadcast 'test-run:updated'
 ### 5.1 执行流程
 
 ```
-POST /api/test-runs { testCaseId, deviceId }
+POST /api/test-runs { suiteId, deviceId }
   │
   ▼
-查询 test_cases 表获取用例详情
+查询 test_suites / test_suite_cases / test_cases 获取套件详情
   │
   ▼
-构造 TestCaseInput 对象
-  │
-  ├── id: testCase.id
-  ├── name: testCase.name
-  ├── platform: testCase.platform
-  ├── steps: testCase.steps
-  └── deviceUdid: deviceId
+创建 test_runs / test_run_items（初始状态: queued）
   │
   ▼
-new TestRunner().run(testCaseInput)
+调度器根据资源策略选择可执行 run
+  ├── Web: 全局最多 1 个 running 套件
+  └── Mobile: 每个 deviceId 最多 1 个 running 套件
+   │
+   ▼
+按顺序构造多个 TestCaseInput
+   │
+   ▼
+逐个执行 TestRunner.run(testCaseInput)
   │
   ▼
-TestRunner 内部:
+TestRunner.run() 内部:
   ├── parseSteps(): 将自然语言按行拆分
   └── executeSteps(): 根据 platform 选择 Agent
        │
@@ -274,8 +343,8 @@ TestRunner 内部:
 
 | 层级 | 处理方式 |
 |------|----------|
-| TestRunner.run() 返回 `status: 'failed'` | 测试用例执行失败（断言不通过等），DB 更新为 `failed` |
-| TestRunner.run() 抛出异常 | 系统级错误（Agent 创建失败等），DB 更新为 `error` |
+| TestRunner.run() 返回 `status: 'failed'` | 测试步骤或断言失败，DB 更新为 `failed` |
+| TestRunner.run() 返回 `status: 'error'` | Agent 创建、设备连接、系统级错误，DB 更新为 `error` |
 | 状态更新后 | 均通过 SSE 广播通知前端 |
 
 ---
@@ -331,27 +400,44 @@ MIDSCENE_MODEL_API_KEY  >  OPENAI_API_KEY
 | PUT | `/api/test-cases/:id` | 更新用例（支持部分更新） |
 | DELETE | `/api/test-cases/:id` | 删除用例（级联删除关联执行记录） |
 
-### 7.2 测试执行
+### 7.2 测试套件
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET | `/api/test-suites` | 获取所有套件 |
+| GET | `/api/test-suites/:id` | 获取单个套件 |
+| POST | `/api/test-suites` | 创建套件 |
+| PUT | `/api/test-suites/:id` | 更新套件 |
+| DELETE | `/api/test-suites/:id` | 删除套件 |
+
+### 7.3 测试执行
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/test-runs` | 获取所有执行记录（按开始时间倒序） |
 | GET | `/api/test-runs/:id` | 获取单条执行记录 |
-| POST | `/api/test-runs` | 创建并启动测试执行 |
+| POST | `/api/test-runs` | 创建 `queued` 执行记录并异步调度 |
+| DELETE | `/api/test-runs/:id` | 删除终态执行记录，或取消 `queued` 任务 |
 | GET | `/api/test-runs/events` | SSE 实时事件流 |
 
-### 7.3 设备管理
+说明：
+
+- `GET /api/test-runs*` 对于 `queued` 任务会额外返回 `queuePosition` 与 `blockedReason`
+- 这两个字段属于读模型派生信息，不落库
+
+### 7.4 设备管理
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/devices` | 获取已发现设备列表 |
 | POST | `/api/devices/refresh` | 重新扫描设备 |
 
-### 7.4 系统
+### 7.5 系统
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
 | GET | `/api/health` | 健康检查 |
+| GET | `/api/readiness` | 运行环境 readiness 诊断 |
 
 ---
 
@@ -376,7 +462,11 @@ useSSE({
 |------|-------------|-------------|---------------|
 | TestRun | 将新记录 prepend 到列表头部 | 按 ID 替换更新 | 全量重新拉取 |
 | Dashboard | 将新记录 prepend 到列表头部 | 按 ID 替换更新 | 全量重新拉取 |
-| Reports | 忽略（pending 状态不相关） | 仅当状态为 passed/failed 时追加或更新 | 全量重新拉取 |
+| Reports | 忽略（queued/running 状态不相关） | 仅当状态为 passed/failed/error 时追加或更新 | 全量重新拉取 |
+
+补充：
+
+- `TestRun` 页面会把 `queuePosition` 与 `blockedReason` 组合成“排队信息”，帮助用户理解为什么任务仍停留在 `queued`
 
 ---
 

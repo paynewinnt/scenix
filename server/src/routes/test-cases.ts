@@ -60,6 +60,10 @@ testCasesRouter.put('/:id', (req, res) => {
   if (name === undefined && platform === undefined && steps === undefined) {
     return res.status(400).json({ error: 'No fields provided for update' });
   }
+  const existingPlatform = String((existing as Record<string, unknown>).platform);
+  if (platform !== undefined && platform !== existingPlatform && isCaseUsedInSuite(req.params.id)) {
+    return res.status(400).json({ error: '测试用例已被测试套件引用，不能直接修改平台' });
+  }
   const now = new Date().toISOString();
 
   const sets: string[] = [];
@@ -94,3 +98,12 @@ testCasesRouter.delete('/:id', (req, res) => {
   if (result.changes === 0) return res.status(404).json({ error: 'Not found' });
   res.status(204).send();
 });
+
+function isCaseUsedInSuite(testCaseId: string): boolean {
+  const db = getDb();
+  const row = db
+    .prepare('SELECT 1 AS found FROM test_suite_cases WHERE test_case_id = ? LIMIT 1')
+    .get(testCaseId) as { found: number } | undefined;
+
+  return Boolean(row);
+}
