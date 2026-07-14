@@ -51,4 +51,4 @@ pnpm build
 
 ## 许可
 
-提交贡献即表示你同意将贡献按项目的 [MIT License](./LICENSE) 授权。你保留自己贡献的版权。
+提交贡献即表示你同意将贡献按项目的 [MIT License](../LICENSE) 授权。你保留自己贡献的版权。

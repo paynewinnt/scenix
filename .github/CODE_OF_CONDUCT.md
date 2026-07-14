@@ -1,4 +1,6 @@
-# Contributor Covenant Code of Conduct
+# Code of Conduct
+
+Scenix follows the Contributor Covenant, version 2.1.
 
 ## Our Pledge
 

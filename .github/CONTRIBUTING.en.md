@@ -51,4 +51,4 @@ Maintainers may request changes, additional tests, or a smaller scope. A maintai
 
 ## License
 
-By contributing, you agree that your contribution is licensed under the project's [MIT License](./LICENSE). You retain copyright in your contribution.
+By contributing, you agree that your contribution is licensed under the project's [MIT License](../LICENSE). You retain copyright in your contribution.

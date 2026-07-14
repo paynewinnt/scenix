@@ -1,16 +1,16 @@
 # Scenix
 
-[中文说明](./README.md)
+[中文说明](../README.md)
 
 [![CI](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml/badge.svg)](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
-[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.en.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](../LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](../.github/CONTRIBUTING.en.md)
 
 AI-driven UI automation testing platform built on Midscene.js and Appium.
 
 Scenix lets you write natural-language test cases, organize them into suites, execute them across Web / Android / iOS, and review suite-level reports with per-case drill-down.
 
-Scenix is open source under the [MIT License](./LICENSE). Everyone may use, copy, modify, and distribute the code, and contributions through Issues and Pull Requests are welcome.
+Scenix is open source under the [MIT License](../LICENSE). Everyone may use, copy, modify, and distribute the code, and contributions through Issues and Pull Requests are welcome.
 
 > Windows and macOS are supported for deployment. iOS execution requires macOS.
 
@@ -248,9 +248,9 @@ pnpm test:ios
 
 Every GitHub user may fork this repository, open an Issue, and submit a Pull Request to `master`. To protect the project and its users, maintainers merge external contributions after review and CI rather than granting anonymous direct write access.
 
-- Read the [Contributing Guide](./CONTRIBUTING.en.md) before starting
-- Follow the [Code of Conduct](./CODE_OF_CONDUCT.md) in all project spaces
-- Report vulnerabilities privately under the [Security Policy](./SECURITY.md), not in a public Issue
+- Read the [Contributing Guide](../.github/CONTRIBUTING.en.md) before starting
+- Follow the [Code of Conduct](../.github/CODE_OF_CONDUCT.md) in all project spaces
+- Report vulnerabilities privately under the [Security Policy](../.github/SECURITY.md), not in a public Issue
 - Use [GitHub Issues](https://github.com/paynewinnt/scenix/issues) for bugs and feature proposals
 
 ## Deployment
@@ -261,4 +261,4 @@ Every GitHub user may fork this repository, open an Issue, and submit a Pull Req
 
 ## License
 
-This project is licensed under the [MIT License](./LICENSE). You may use, copy, modify, merge, publish, and distribute it as long as the original copyright and license notice are retained.
+This project is licensed under the [MIT License](../LICENSE). You may use, copy, modify, merge, publish, and distribute it as long as the original copyright and license notice are retained.
