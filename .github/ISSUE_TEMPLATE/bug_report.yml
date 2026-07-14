@@ -1,0 +1,60 @@
+name: Bug report / 缺陷报告
+description: Report reproducible incorrect behavior / 报告可复现的异常行为
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve Scenix. Do not include API keys, credentials, private data, or undisclosed security vulnerabilities.
+        感谢帮助改进 Scenix。请勿提交 API Key、凭据、隐私数据或未公开的安全漏洞。
+  - type: textarea
+    id: description
+    attributes:
+      label: Problem / 问题描述
+      description: Describe what happened and why it is a problem.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction / 复现步骤
+      description: Provide the smallest reliable sequence that reproduces the problem.
+      placeholder: |
+        1. Start ...
+        2. Open ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior / 预期行为
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment / 环境
+      description: Include OS, Node.js/pnpm versions, platform, browser/device, and relevant configuration without secrets.
+      placeholder: |
+        OS:
+        Node.js:
+        pnpm:
+        Platform: Web / Android / iOS
+        Browser or device:
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots / 日志或截图
+      description: Remove credentials and private data before attaching evidence.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist / 检查项
+      options:
+        - label: I searched existing Issues and did not find a duplicate. / 我已搜索现有 Issue，未发现重复问题。
+          required: true
+        - label: I removed secrets and private data from this report. / 我已移除敏感信息和隐私数据。
+          required: true

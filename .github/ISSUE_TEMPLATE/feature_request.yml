@@ -1,0 +1,37 @@
+name: Feature request / 功能建议
+description: Propose an improvement to Scenix / 提议改进 Scenix
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / 要解决的问题
+      description: What user problem or limitation should this change address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution / 建议方案
+      description: Describe the desired behavior and, if useful, a possible implementation.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives / 备选方案
+      description: What alternatives or workarounds have you considered?
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context / 补充信息
+      description: Add examples, screenshots, related projects, or compatibility considerations.
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist / 检查项
+      options:
+        - label: I searched existing Issues and did not find the same request. / 我已搜索现有 Issue，未发现相同建议。
+          required: true
+        - label: I am willing to help implement or test this feature. / 我愿意协助实现或测试此功能。
+          required: false

@@ -2,9 +2,15 @@
 
 [English Version](./README.en.md)
 
+[![CI](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml/badge.svg)](https://github.com/paynewinnt/scenix/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](./CONTRIBUTING.md)
+
 基于 Midscene.js 和 Appium 的 AI 驱动 UI 自动化测试平台。
 
 Scenix 支持使用自然语言编写测试用例，将多个用例编排为测试套件，在 Web / Android / iOS 上执行，并以“套件总报告 + 子用例报告”的方式查看结果。
+
+Scenix 是采用 [MIT License](./LICENSE) 的开源项目。任何人都可以使用、复制、修改和分发代码，也欢迎通过 Issue 和 Pull Request 参与改进。
 
 > 项目支持部署在 Windows 和 macOS；其中 iOS 执行仅支持 macOS。
 
@@ -98,7 +104,7 @@ flowchart LR
 ### 安装
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/paynewinnt/scenix.git
 cd scenix
 pnpm install
 ```
@@ -238,6 +244,15 @@ pnpm test:android
 pnpm test:ios
 ```
 
+## 参与开源
+
+任何 GitHub 用户都可以 fork 本仓库、创建 Issue，并向 `master` 提交 Pull Request。为保护项目和所有使用者，外部贡献通过评审和 CI 后由维护者合并，而不是开放匿名直接写入仓库。
+
+- 开始贡献前请阅读 [贡献指南](./CONTRIBUTING.md)
+- 所有参与者都应遵守 [行为准则](./CODE_OF_CONDUCT.md)
+- 安全漏洞请按 [安全策略](./SECURITY.md) 私密报告，不要创建公开 Issue
+- Bug 与功能建议可通过 [GitHub Issues](https://github.com/paynewinnt/scenix/issues) 提交
+
 ## 部署
 
 - Windows：frontend、backend、Web、Android
@@ -246,4 +261,4 @@ pnpm test:ios
 
 ## 许可证
 
-私有项目，未经授权不得分发。
+本项目采用 [MIT License](./LICENSE)。你可以自由使用、复制、修改、合并、发布和分发本项目，但须保留原始版权和许可声明。
