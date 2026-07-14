@@ -1,5 +1,7 @@
 # Security Policy / 安全策略
 
+This policy explains how to report security issues without exposing users or maintainers to additional risk.
+
 ## Supported Versions / 支持版本
 
 Scenix is currently developed from `master` without a formal long-term support release. Security fixes target the latest code on `master`.
