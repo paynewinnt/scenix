@@ -41,10 +41,9 @@ testSuitesRouter.get('/:id', (req, res) => {
 
 testSuitesRouter.post('/', (req, res) => {
   const db = getDb();
-  const { name, testCaseIds } = req.body as {
-    name?: string;
-    testCaseIds?: string[];
-  };
+  const body = isRecord(req.body) ? req.body : {};
+  const name = typeof body.name === 'string' ? body.name : undefined;
+  const testCaseIds = Array.isArray(body.testCaseIds) ? body.testCaseIds : undefined;
 
   const validation = validateSuitePayload(name, testCaseIds);
   if (validation.error) {
@@ -64,11 +63,13 @@ testSuitesRouter.post('/', (req, res) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
-  db.prepare(
-    'INSERT INTO test_suites (id, name, platform, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
-  ).run(id, validation.name, platform, now, now);
-
-  insertSuiteCases(id, validation.testCaseIds);
+  const createSuite = db.transaction(() => {
+    db.prepare(
+      'INSERT INTO test_suites (id, name, platform, created_at, updated_at) VALUES (?, ?, ?, ?, ?)',
+    ).run(id, validation.name, platform, now, now);
+    insertSuiteCases(id, validation.testCaseIds);
+  });
+  createSuite();
   res.status(201).json(getSuiteById(id));
 });
 
@@ -79,15 +80,16 @@ testSuitesRouter.put('/:id', (req, res) => {
     return res.status(404).json({ error: 'Not found' });
   }
 
-  const { name, testCaseIds } = req.body as {
-    name?: string;
-    testCaseIds?: string[];
-  };
+  const body = isRecord(req.body) ? req.body : {};
+  const { name, testCaseIds } = body;
 
   const hasName = typeof name === 'string';
   const hasTestCaseIds = Array.isArray(testCaseIds);
   if (!hasName && !hasTestCaseIds) {
     return res.status(400).json({ error: 'No fields provided for update' });
+  }
+  if (name !== undefined && (!hasName || !name.trim())) {
+    return res.status(400).json({ error: '请输入测试套件名称' });
   }
 
   const nextName = hasName ? name.trim() : String((existing as Record<string, unknown>).name);
@@ -113,14 +115,17 @@ testSuitesRouter.put('/:id', (req, res) => {
   }
 
   const now = new Date().toISOString();
-  db.prepare('UPDATE test_suites SET name = ?, platform = ?, updated_at = ? WHERE id = ?').run(
-    nextName,
-    platform,
-    now,
-    req.params.id,
-  );
-  db.prepare('DELETE FROM test_suite_cases WHERE suite_id = ?').run(req.params.id);
-  insertSuiteCases(req.params.id, nextCaseIds);
+  const updateSuite = db.transaction(() => {
+    db.prepare('UPDATE test_suites SET name = ?, platform = ?, updated_at = ? WHERE id = ?').run(
+      nextName,
+      platform,
+      now,
+      req.params.id,
+    );
+    db.prepare('DELETE FROM test_suite_cases WHERE suite_id = ?').run(req.params.id);
+    insertSuiteCases(req.params.id, nextCaseIds);
+  });
+  updateSuite();
 
   res.json(getSuiteById(req.params.id));
 });
@@ -134,13 +139,19 @@ testSuitesRouter.delete('/:id', (req, res) => {
   res.status(204).send();
 });
 
-function validateSuitePayload(name?: string, testCaseIds?: string[]): {
+function validateSuitePayload(name?: string, testCaseIds?: unknown[]): {
   name: string;
   testCaseIds: string[];
   error?: string;
 } {
   const trimmedName = name?.trim() ?? '';
-  const uniqueCaseIds = Array.from(new Set((testCaseIds ?? []).filter(Boolean)));
+  const validCaseIds = (testCaseIds ?? []).filter(
+    (id): id is string => typeof id === 'string' && Boolean(id.trim()),
+  );
+  if (testCaseIds && validCaseIds.length !== testCaseIds.length) {
+    return { name: trimmedName, testCaseIds: [], error: '测试用例 ID 必须是非空字符串' };
+  }
+  const uniqueCaseIds = Array.from(new Set(validCaseIds.map((id) => id.trim())));
 
   if (!trimmedName) {
     return { name: '', testCaseIds: [], error: '请输入测试套件名称' };
@@ -244,4 +255,8 @@ function groupSuites(rows: Record<string, unknown>[]): Record<string, unknown>[]
   return rowsToCamelCase(
     Array.from(suites.values()) as Record<string, unknown>[],
   );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

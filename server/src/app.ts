@@ -1,5 +1,6 @@
 import cors from 'cors';
 import express from 'express';
+import { getAllowedCorsOrigins } from './config/network.js';
 import { resolveFromWorkspaceRoot } from './config/paths.js';
 import { getCanonicalRunDir } from './config/run-dir.js';
 import { devicesRouter } from './routes/devices.js';
@@ -11,8 +12,15 @@ import { testSuitesRouter } from './routes/test-suites.js';
 
 export function createApp(): express.Express {
   const app = express();
+  const allowedOrigins = getAllowedCorsOrigins();
 
-  app.use(cors());
+  app.use(
+    cors({
+      origin(origin, callback) {
+        callback(null, !origin || allowedOrigins.has(origin));
+      },
+    }),
+  );
   app.use(express.json());
 
   app.use('/reports', express.static(getCanonicalRunDir()));

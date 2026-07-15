@@ -1,12 +1,10 @@
-import { existsSync, mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, utimesSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
-  bindReportFile,
-  createReportSnapshot,
   inferLegacyReportPath,
-  waitForNewReportFile,
+  resolveGeneratedReportPath,
 } from '../../server/src/services/report-binding';
 
 const tempDirs: string[] = [];
@@ -18,41 +16,23 @@ afterEach(() => {
 });
 
 describe('report-binding', () => {
-  it('waits for a new report file after a snapshot', async () => {
+  it('maps an explicit generated report inside the canonical report directory', () => {
     const reportDir = createTempReportDir();
-    const snapshot = createReportSnapshot(reportDir);
-    const reportPath = path.join(reportDir, 'midscene-run.html');
+    const reportPath = path.join(reportDir, 'case-run-1-item-1.html');
+    writeFileSync(reportPath, '<html>ok</html>', 'utf8');
 
-    setTimeout(() => {
-      writeFileSync(reportPath, '<html>ok</html>', 'utf8');
-    }, 10);
-
-    const reportFile = await waitForNewReportFile(reportDir, snapshot, {
-      timeoutMs: 1_000,
-      pollIntervalMs: 10,
-    });
-
-    expect(reportFile?.name).toBe('midscene-run.html');
+    expect(resolveGeneratedReportPath(reportDir, reportPath)).toBe(
+      '/reports/report/case-run-1-item-1.html',
+    );
   });
 
-  it('binds a discovered report to a deterministic file name', () => {
+  it('rejects missing files and generated paths outside the report directory', () => {
     const reportDir = createTempReportDir();
-    const sourcePath = path.join(reportDir, 'random-report.html');
-    writeFileSync(sourcePath, '<html>bound</html>', 'utf8');
+    const outsidePath = path.join(path.dirname(reportDir), 'outside.html');
+    writeFileSync(outsidePath, '<html>outside</html>', 'utf8');
 
-    const publicPath = bindReportFile(
-      reportDir,
-      {
-        absolutePath: sourcePath,
-        name: 'random-report.html',
-        mtime: Date.now(),
-      },
-      'case-run-1-item-1.html',
-    );
-
-    expect(publicPath).toBe('/reports/report/case-run-1-item-1.html');
-    expect(existsSync(path.join(reportDir, 'case-run-1-item-1.html'))).toBe(true);
-    expect(existsSync(sourcePath)).toBe(false);
+    expect(resolveGeneratedReportPath(reportDir, outsidePath)).toBeNull();
+    expect(resolveGeneratedReportPath(reportDir, path.join(reportDir, 'missing.html'))).toBeNull();
   });
 
   it('infers the latest legacy report inside the execution window', () => {

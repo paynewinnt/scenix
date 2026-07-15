@@ -173,11 +173,11 @@ export default function TestCases() {
             <TextArea
               rows={8}
               placeholder={`用自然语言描述测试步骤，每行一步，例如：
-1. 打开浏览器访问 https://example.com/login
-2. 在用户名输入框中输入 testuser
-3. 在密码输入框中输入 password123
-4. 点击登录按钮
-5. 断言：页面显示"欢迎回来"文字`}
+1. 打开 Bing 首页
+2. 点击搜索框
+3. 输入 Midscene.js
+4. 点击搜索按钮，并等待进入 Midscene.js 搜索结果页
+5. 断言搜索关键词为 Midscene.js，且至少显示一条相关结果`}
             />
           </Form.Item>
         </Form>

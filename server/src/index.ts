@@ -5,6 +5,7 @@ import { createApp } from './app.js';
 import { initDatabase } from './db/index.js';
 import { workspaceRootDir } from './config/paths.js';
 import { migrateLegacyRunArtifacts, normalizeRunDirEnv } from './config/run-dir.js';
+import { isLoopbackHost, resolveServerNetworkConfig } from './config/network.js';
 import { recoverInterruptedRunsOnStartup } from './services/run-recovery-service.js';
 
 dotenv.config({ path: path.resolve(workspaceRootDir, '.env') });
@@ -23,12 +24,23 @@ if (aiWarnings.length > 0) {
 }
 
 const app = createApp();
-const PORT = process.env.SERVER_PORT ?? 3001;
 
-void recoverInterruptedRunsOnStartup().catch((error) => {
-  console.error('Failed to recover queued test runs on startup:', error);
-});
+async function startServer(): Promise<void> {
+  const network = resolveServerNetworkConfig();
+  await recoverInterruptedRunsOnStartup();
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  if (!isLoopbackHost(network.host)) {
+    console.warn(
+      'WARNING: Scenix is listening remotely without authentication. Use a trusted network and restrictive firewall.',
+    );
+  }
+
+  app.listen(network.port, network.host, () => {
+    console.log(`Server running on http://${network.host}:${network.port}`);
+  });
+}
+
+void startServer().catch((error) => {
+  console.error('Failed to start server:', error);
+  process.exitCode = 1;
 });

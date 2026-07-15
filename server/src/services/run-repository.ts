@@ -33,6 +33,7 @@ export interface RunItemRecord {
   report_path: string | null;
   error_message: string | null;
   sort_order: number;
+  steps_snapshot: string | null;
 }
 
 export interface QueuedRunRecord {
@@ -75,7 +76,7 @@ export function listExecutableRunItems(runId: string): ExecutableRunItem[] {
          i.test_case_id,
          i.test_case_name,
          i.platform,
-         c.steps
+         COALESCE(i.steps_snapshot, c.steps) AS steps
        FROM test_run_items i
        LEFT JOIN test_cases c ON c.id = i.test_case_id
        WHERE i.test_run_id = ?
@@ -200,8 +201,8 @@ export function createQueuedRunRecord(input: {
 
     const itemInsert = db.prepare(
       `INSERT INTO test_run_items (
-        id, test_run_id, test_case_id, test_case_name, platform, status, started_at, sort_order
-      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?)`,
+        id, test_run_id, test_case_id, test_case_name, platform, status, started_at, sort_order, steps_snapshot
+      ) VALUES (?, ?, ?, ?, ?, 'queued', ?, ?, ?)`,
     );
 
     input.suite.testCases.forEach((testCase, index) => {
@@ -213,6 +214,7 @@ export function createQueuedRunRecord(input: {
         testCase.platform,
         input.queuedAt,
         index,
+        testCase.steps,
       );
     });
   });

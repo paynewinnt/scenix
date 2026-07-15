@@ -11,6 +11,9 @@ export interface IOSAgentOptions {
   wdaHost?: string;
   wdaPort?: number;
   aiActionContext?: string;
+  testId?: string;
+  generateReport?: boolean;
+  reportFileName?: string;
 }
 
 export async function createIOSAgent(options: IOSAgentOptions = {}) {
@@ -19,37 +22,22 @@ export async function createIOSAgent(options: IOSAgentOptions = {}) {
     'If any permission dialog appears, tap Allow. If a system alert appears, dismiss it.';
   const wdaTarget = parseWdaTarget(options);
 
+  let iosModule: typeof import('@midscene/ios') | null = null;
   try {
-    // Midscene v1 iOS API uses IOSDevice + IOSAgent.
-    const { IOSAgent, IOSDevice } = await import('@midscene/ios');
-    const device = new IOSDevice(wdaTarget);
-    const agent = new IOSAgent(device, { aiActionContext });
-
-    return {
-      agent,
-
-      async aiAction(instruction: string): Promise<void> {
-        await agent.aiAction(instruction);
-      },
-
-      async aiAssert(assertion: string): Promise<void> {
-        await agent.aiAssert(assertion);
-      },
-
-      async aiQuery<T>(dataShape: string, instruction: string): Promise<T> {
-        return agent.aiQuery(dataShape, { prompt: instruction });
-      },
-
-      async destroy(): Promise<void> {
-        await agent.destroy();
-      },
-    };
+    iosModule = await import('@midscene/ios');
   } catch {
-    // Fallback for older Midscene setups already using WDA directly.
-    // @ts-expect-error -- @midscene/core may not have type declarations
-    const { AgentOverWebDriverProtocol } = await import('@midscene/core');
-    const wdaUrl = `${wdaTarget.wdaProtocol ?? 'http:'}//${wdaTarget.wdaHost ?? 'localhost'}:${wdaTarget.wdaPort ?? 8100}`;
-    const agent = new AgentOverWebDriverProtocol(wdaUrl, { aiActionContext });
+    // Older Midscene installations expose only the generic WDA agent.
+  }
+
+  if (iosModule) {
+    const { IOSAgent, IOSDevice } = iosModule;
+    const device = new IOSDevice(wdaTarget);
+    const agent = new IOSAgent(device, {
+      aiActionContext,
+      testId: options.testId,
+      generateReport: options.generateReport,
+      reportFileName: options.reportFileName,
+    });
 
     return {
       agent,
@@ -66,11 +54,44 @@ export async function createIOSAgent(options: IOSAgentOptions = {}) {
         return agent.aiQuery(dataShape, { prompt: instruction });
       },
 
-      async destroy(): Promise<void> {
+      async destroy(): Promise<string | undefined> {
         await agent.destroy();
+        return agent.reportFile ?? undefined;
       },
     };
   }
+
+  // Fallback for older Midscene setups already using WDA directly.
+  // @ts-expect-error -- older @midscene/core releases expose this class without declarations
+  const { AgentOverWebDriverProtocol } = await import('@midscene/core');
+  const wdaUrl = `${wdaTarget.wdaProtocol ?? 'http:'}//${wdaTarget.wdaHost ?? 'localhost'}:${wdaTarget.wdaPort ?? 8100}`;
+  const agent = new AgentOverWebDriverProtocol(wdaUrl, {
+    aiActionContext,
+    testId: options.testId,
+    generateReport: options.generateReport,
+    reportFileName: options.reportFileName,
+  });
+
+  return {
+    agent,
+
+    async aiAction(instruction: string): Promise<void> {
+      await agent.aiAction(instruction);
+    },
+
+    async aiAssert(assertion: string): Promise<void> {
+      await agent.aiAssert(assertion);
+    },
+
+    async aiQuery<T>(dataShape: string, instruction: string): Promise<T> {
+      return agent.aiQuery(dataShape, { prompt: instruction });
+    },
+
+    async destroy(): Promise<string | undefined> {
+      await agent.destroy();
+      return agent.reportFile ?? undefined;
+    },
+  };
 }
 
 function parseWdaTarget(options: IOSAgentOptions): {

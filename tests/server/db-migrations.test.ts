@@ -20,6 +20,7 @@ describe('db-migrations', () => {
     const columns = getColumnNames(db, 'test_runs');
     expect(columns).toContain('queued_at');
     expect(columns).toContain('dispatched_at');
+    expect(getColumnNames(db, 'test_run_items')).toContain('steps_snapshot');
 
     const migrationIds = (
       db.prepare('SELECT id FROM schema_migrations ORDER BY id').all() as Array<{ id: string }>
@@ -31,6 +32,7 @@ describe('db-migrations', () => {
       '003_run_tables_support_queued',
       '004_run_queue_timestamps',
       '005_run_history_uses_case_snapshots',
+      '006_run_item_steps_snapshot',
     ]);
 
     expect(getTableSql(db, 'test_runs')).not.toContain('REFERENCES test_cases');
@@ -149,6 +151,7 @@ describe('db-migrations', () => {
     expect(runColumns).toContain('suite_name');
     expect(runColumns).toContain('queued_at');
     expect(runColumns).toContain('dispatched_at');
+    expect(getColumnNames(migratedDb, 'test_run_items')).toContain('steps_snapshot');
 
     const row = migratedDb
       .prepare('SELECT queued_at, dispatched_at FROM test_runs WHERE id = ?')
@@ -156,13 +159,17 @@ describe('db-migrations', () => {
 
     expect(row.queued_at).toBe('2026-04-22T10:05:00.000Z');
     expect(row.dispatched_at).toBe('2026-04-22T10:05:00.000Z');
+    const item = migratedDb
+      .prepare('SELECT steps_snapshot FROM test_run_items WHERE id = ?')
+      .get('item-1') as { steps_snapshot: string };
+    expect(item.steps_snapshot).toBe('1. 打开首页');
     expect(getTableSql(migratedDb, 'test_runs')).not.toContain('REFERENCES test_cases');
     expect(getTableSql(migratedDb, 'test_run_items')).not.toContain('REFERENCES test_cases');
 
     const migrationCount = (
       migratedDb.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get() as { count: number }
     ).count;
-    expect(migrationCount).toBe(5);
+    expect(migrationCount).toBe(6);
 
     migratedDb.close();
   });

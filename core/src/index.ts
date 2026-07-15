@@ -39,15 +39,26 @@ export { TestRunner } from './runner/test-runner.js';
 export type { TestCaseInput, TestResult } from './runner/test-runner.js';
 export {
   applyAIConfigDefaultsToEnv,
+  DEFAULT_CODEX_BASE_URL,
+  DEFAULT_CODEX_MODEL_FAMILY,
+  DEFAULT_CODEX_MODEL_NAME,
+  DEFAULT_CODEX_REASONING_EFFORT,
   getAIConfig,
   getAIConfigDiagnostics,
   validateAIConfig,
   PROVIDER_PRESETS,
 } from './config/ai-config.js';
-export type { AIModelConfig, AIConfigDiagnostics, ProviderPreset } from './config/ai-config.js';
+export type {
+  AIConfigDiagnostics,
+  AIModelConfig,
+  AIModelProvider,
+  AIReasoningEffort,
+  ProviderPreset,
+} from './config/ai-config.js';
 export { getRuntimeReadinessReport, resolveAndroidSdkEnvironment } from './config/runtime-readiness.js';
 export type {
   AndroidSdkEnvironment,
+  CodexRuntimeStatus,
   ReadinessCheck,
   ReadinessStatus,
   RuntimeReadinessReport,

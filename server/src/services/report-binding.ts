@@ -1,4 +1,4 @@
-import { copyFileSync, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
 
 export interface ReportFile {
@@ -7,60 +7,26 @@ export interface ReportFile {
   mtime: number;
 }
 
-export type ReportSnapshot = Set<string>;
-
-export function createReportSnapshot(reportDir: string): ReportSnapshot {
-  return new Set(listReportFiles(reportDir).map((file) => file.absolutePath));
-}
-
-export async function waitForNewReportFile(
-  reportDir: string,
-  snapshot: ReportSnapshot,
-  options: {
-    timeoutMs?: number;
-    pollIntervalMs?: number;
-  } = {},
-): Promise<ReportFile | null> {
-  const timeoutMs = options.timeoutMs ?? 3_000;
-  const pollIntervalMs = options.pollIntervalMs ?? 250;
-  const deadline = Date.now() + timeoutMs;
-
-  while (Date.now() <= deadline) {
-    const reportFile = findNewReportFile(reportDir, snapshot);
-    if (reportFile) {
-      return reportFile;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, pollIntervalMs));
+export function resolveGeneratedReportPath(reportDir: string, generatedPath?: string): string | null {
+  if (!generatedPath) {
+    return null;
   }
 
-  return findNewReportFile(reportDir, snapshot);
-}
+  const absoluteReportDir = path.resolve(reportDir);
+  const absoluteGeneratedPath = path.resolve(generatedPath);
+  const relativePath = path.relative(absoluteReportDir, absoluteGeneratedPath);
 
-export function findNewReportFile(reportDir: string, snapshot: ReportSnapshot): ReportFile | null {
-  const candidates = listReportFiles(reportDir)
-    .filter((file) => !snapshot.has(file.absolutePath))
-    .sort((a, b) => b.mtime - a.mtime);
-
-  return candidates[0] ?? null;
-}
-
-export function bindReportFile(reportDir: string, reportFile: ReportFile, targetFileName: string): string {
-  const targetAbsolutePath = path.join(reportDir, targetFileName);
-
-  if (reportFile.absolutePath !== targetAbsolutePath) {
-    mkdirSync(reportDir, { recursive: true });
-    rmSync(targetAbsolutePath, { force: true });
-
-    try {
-      renameSync(reportFile.absolutePath, targetAbsolutePath);
-    } catch {
-      copyFileSync(reportFile.absolutePath, targetAbsolutePath);
-      rmSync(reportFile.absolutePath, { force: true });
-    }
+  if (
+    !relativePath ||
+    relativePath.startsWith(`..${path.sep}`) ||
+    path.isAbsolute(relativePath) ||
+    path.extname(relativePath).toLowerCase() !== '.html' ||
+    !existsSync(absoluteGeneratedPath)
+  ) {
+    return null;
   }
 
-  return toPublicReportPath(targetFileName);
+  return `/reports/report/${relativePath.split(path.sep).join('/')}`;
 }
 
 export function inferLegacyReportPath(reportDir: string, startedAt: number, finishedAt?: number): string | null {

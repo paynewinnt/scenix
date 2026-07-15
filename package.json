@@ -21,14 +21,16 @@
     "dev": "concurrently \"pnpm --filter client dev\" \"pnpm --filter server dev\"",
     "dev:client": "pnpm --filter client dev",
     "dev:server": "pnpm --filter server dev",
-    "build": "pnpm --filter client build && pnpm --filter server build",
+    "fixture:web": "node scripts/web-search-fixture.mjs",
+    "build:core": "pnpm --filter core build",
+    "build": "pnpm build:core && pnpm --filter client build && pnpm --filter server build",
     "test": "pnpm test:unit",
-    "test:unit": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/server tests/client",
-    "test:live": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/web tests/android tests/ios",
+    "test:unit": "pnpm build:core && pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/server tests/client",
+    "test:live": "pnpm build:core && pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/web tests/android tests/ios",
     "test:all": "pnpm test:unit && pnpm test:live",
-    "test:web": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/web/login.test.ts",
-    "test:android": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/android/ebay-search.test.ts",
-    "test:ios": "pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/ios/settings.test.ts"
+    "test:web": "pnpm build:core && pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/web/search.test.ts",
+    "test:android": "pnpm build:core && pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/android/ebay-search.test.ts",
+    "test:ios": "pnpm build:core && pnpm --filter core exec vitest run --config vitest.config.ts --root .. tests/ios/settings.test.ts"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

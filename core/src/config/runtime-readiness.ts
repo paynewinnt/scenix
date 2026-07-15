@@ -1,8 +1,9 @@
+import { execFile } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import net from 'node:net';
 import path from 'node:path';
 import {
-  DEFAULT_MIDSCENE_MODEL_NAME,
+  DEFAULT_CODEX_REASONING_EFFORT,
   getAIConfigDiagnostics,
 } from './ai-config.js';
 
@@ -28,8 +29,19 @@ export interface AndroidSdkEnvironment {
   source: 'env' | 'adb-path' | 'detected' | 'missing';
 }
 
+export interface CodexRuntimeStatus {
+  ready: boolean;
+  version?: string;
+  loginStatus?: string;
+  issue?: string;
+}
+
+export type CodexCommandRunner = (
+  args: string[],
+) => Promise<{ stdout: string; stderr: string }>;
+
 export async function getRuntimeReadinessReport(): Promise<RuntimeReadinessReport> {
-  const aiCheck = getAIReadinessCheck();
+  const aiCheck = await getAIReadinessCheck();
   const [webCheck, androidCheck, iosCheck] = await Promise.all([
     getWebReadinessCheck(aiCheck.status !== 'error'),
     Promise.resolve(getAndroidReadinessCheck(aiCheck.status !== 'error')),
@@ -80,7 +92,7 @@ export function resolveAndroidSdkEnvironment(): AndroidSdkEnvironment {
   };
 }
 
-function getAIReadinessCheck(): ReadinessCheck {
+async function getAIReadinessCheck(): Promise<ReadinessCheck> {
   const diagnostics = getAIConfigDiagnostics();
 
   if (!diagnostics.ready) {
@@ -94,17 +106,120 @@ function getAIReadinessCheck(): ReadinessCheck {
   }
 
   const config = diagnostics.config!;
+  if (config.provider === 'codex') {
+    const runtime = await inspectCodexRuntime();
+    const details = [
+      'Provider: Local Codex (app-server)',
+      `Model: ${config.modelName}`,
+      `Model family: ${config.modelFamily}`,
+      `Reasoning: ${config.reasoningEffort ?? DEFAULT_CODEX_REASONING_EFFORT}`,
+      ...(runtime.version ? [`CLI: ${runtime.version}`] : []),
+      ...(runtime.loginStatus ? [`Auth: ${runtime.loginStatus}`] : []),
+      ...diagnostics.warnings,
+    ];
+
+    if (!runtime.ready) {
+      return {
+        key: 'ai',
+        label: 'AI 模型配置',
+        status: 'error',
+        summary: '本机 Codex CLI 或登录状态不可用',
+        details: [...details, runtime.issue ?? 'Codex runtime check failed.'],
+      };
+    }
+
+    return {
+      key: 'ai',
+      label: 'AI 模型配置',
+      status: diagnostics.warnings.length > 0 ? 'warning' : 'ready',
+      summary: `本机 Codex 已就绪：${config.modelName}`,
+      details,
+    };
+  }
+
   return {
     key: 'ai',
     label: 'AI 模型配置',
     status: diagnostics.warnings.length > 0 ? 'warning' : 'ready',
-    summary: `模型配置可用：${config.modelName || DEFAULT_MIDSCENE_MODEL_NAME}`,
+    summary: `API 模型配置可用：${config.modelName}`,
     details: [
+      'Provider: API',
       `Base URL: ${config.baseUrl}`,
-      `Model: ${config.modelName || DEFAULT_MIDSCENE_MODEL_NAME}`,
+      `Model: ${config.modelName}`,
       ...diagnostics.warnings,
     ],
   };
+}
+
+export async function inspectCodexRuntime(
+  runCommand: CodexCommandRunner = runCodexCommand,
+): Promise<CodexRuntimeStatus> {
+  let version: string;
+  try {
+    const result = await runCommand(['--version']);
+    version = summarizeCodexCommandOutput(result, 'Codex CLI available');
+  } catch (error) {
+    return {
+      ready: false,
+      issue: `无法执行 codex --version：${formatCommandError(error)}`,
+    };
+  }
+
+  try {
+    await runCommand(['app-server', '--help']);
+  } catch (error) {
+    return {
+      ready: false,
+      version,
+      issue: `当前 Codex CLI 不支持 app-server：${formatCommandError(error)}`,
+    };
+  }
+
+  try {
+    const result = await runCommand(['login', 'status']);
+    const loginStatus = summarizeCodexCommandOutput(result, 'Authenticated');
+    return { ready: true, version, loginStatus };
+  } catch (error) {
+    return {
+      ready: false,
+      version,
+      issue: `Codex 尚未登录或登录状态不可用：${formatCommandError(error)}`,
+    };
+  }
+}
+
+function runCodexCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(
+      'codex',
+      args,
+      { encoding: 'utf8', timeout: 5_000, maxBuffer: 1024 * 1024 },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve({ stdout, stderr });
+      },
+    );
+  });
+}
+
+function formatCommandError(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function summarizeCodexCommandOutput(
+  result: { stdout: string; stderr: string },
+  fallback: string,
+): string {
+  const lines = `${result.stdout}\n${result.stderr}`
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line && !line.startsWith('WARNING: proceeding'));
+
+  return lines[lines.length - 1] ?? fallback;
 }
 
 async function getWebReadinessCheck(aiReady: boolean): Promise<ReadinessCheck> {

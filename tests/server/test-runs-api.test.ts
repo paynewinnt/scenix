@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../../server/src/app';
 import { initDatabase } from '../../server/src/db';
 import { resetRunCoordinator } from '../../server/src/services/run-coordinator';
+import { listExecutableRunItems } from '../../server/src/services/run-repository';
 import {
   STARTUP_RECOVERY_ERROR,
   recoverInterruptedRunsOnStartup,
@@ -185,6 +186,79 @@ describe('test-runs API', () => {
       suite.firstCaseName,
       suite.secondCaseName,
     ]);
+  });
+
+  it('executes the step snapshot captured when the run was queued', async () => {
+    const harness = await createHarness();
+    const suite = seedWebSuite(harness.db);
+    seedRunningWebRun(harness.db, suite);
+
+    const createResponse = await injectJsonRequest<{ id: string }>(harness.app, {
+      method: 'POST',
+      url: '/api/test-runs',
+      json: { suiteId: suite.suiteId },
+    });
+    expect(createResponse.status).toBe(201);
+
+    harness.db
+      .prepare('UPDATE test_cases SET steps = ? WHERE id = ?')
+      .run('1. 排队后被修改的步骤', suite.testCaseId);
+
+    const items = listExecutableRunItems(String(createResponse.body?.id));
+    expect(items).toHaveLength(1);
+    expect(items[0].steps).toBe('1. 打开登录页\n2. 输入账号密码');
+  });
+
+  it('rejects blank test case and suite updates', async () => {
+    const harness = await createHarness();
+    const suite = seedWebSuite(harness.db);
+
+    const caseResponse = await injectJsonRequest<{ error: string }>(harness.app, {
+      method: 'PUT',
+      url: `/api/test-cases/${suite.testCaseId}`,
+      json: { steps: '   ' },
+    });
+    expect(caseResponse.status).toBe(400);
+    expect(caseResponse.body?.error).toBe('Test case steps must not be blank');
+
+    const suiteResponse = await injectJsonRequest<{ error: string }>(harness.app, {
+      method: 'PUT',
+      url: `/api/test-suites/${suite.suiteId}`,
+      json: { name: '   ' },
+    });
+    expect(suiteResponse.status).toBe(400);
+    expect(suiteResponse.body?.error).toBe('请输入测试套件名称');
+  });
+
+  it('reports a queued mobile run as disconnected when no device is cached', async () => {
+    const harness = await createHarness();
+    const runId = seedQueuedAndroidRun(harness.db);
+
+    const response = await injectJsonRequest<{ blockedReason: string }>(harness.app, {
+      method: 'GET',
+      url: `/api/test-runs/${runId}`,
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.blockedReason).toBe('device_disconnected');
+  });
+
+  it('adds CORS headers only for allowed browser origins', async () => {
+    const harness = await createHarness();
+
+    const allowed = await injectJsonRequest(harness.app, {
+      method: 'GET',
+      url: '/api/health',
+      headers: { origin: 'http://localhost:5173' },
+    });
+    const rejected = await injectJsonRequest(harness.app, {
+      method: 'GET',
+      url: '/api/health',
+      headers: { origin: 'https://untrusted.example' },
+    });
+
+    expect(allowed.headers['access-control-allow-origin']).toBe('http://localhost:5173');
+    expect(rejected.headers['access-control-allow-origin']).toBeUndefined();
   });
 });
 
@@ -415,12 +489,50 @@ function seedInterruptedRun(
   return runId;
 }
 
+function seedQueuedAndroidRun(db: ReturnType<typeof initDatabase>): string {
+  const runId = 'run-queued-android-missing';
+  const queuedAt = '2026-04-22T10:20:00.000Z';
+
+  db.prepare(
+    `INSERT INTO test_runs (
+      id, test_case_id, test_case_name, suite_id, suite_name, platform, device_id,
+      status, queued_at, started_at
+    ) VALUES (?, ?, ?, ?, ?, 'android', ?, 'queued', ?, ?)`,
+  ).run(
+    runId,
+    'case-android-missing',
+    'Android 搜索',
+    'suite-android-missing',
+    'Android 套件',
+    'android-missing',
+    queuedAt,
+    queuedAt,
+  );
+
+  db.prepare(
+    `INSERT INTO test_run_items (
+      id, test_run_id, test_case_id, test_case_name, platform, status,
+      started_at, sort_order, steps_snapshot
+    ) VALUES (?, ?, ?, ?, 'android', 'queued', ?, 0, ?)`,
+  ).run(
+    'item-queued-android-missing',
+    runId,
+    'case-android-missing',
+    'Android 搜索',
+    queuedAt,
+    '1. 打开应用',
+  );
+
+  return runId;
+}
+
 async function injectJsonRequest<TBody = unknown>(
   app: ReturnType<typeof createApp>,
   input: {
     method: string;
     url: string;
     json?: unknown;
+    headers?: Record<string, string>;
   },
 ): Promise<InjectedResponse<TBody>> {
   const payload = input.json === undefined ? undefined : JSON.stringify(input.json);
@@ -430,10 +542,11 @@ async function injectJsonRequest<TBody = unknown>(
   req.url = input.url;
   req.headers = payload
     ? {
+        ...input.headers,
         'content-type': 'application/json',
         'content-length': String(Buffer.byteLength(payload)),
       }
-    : {};
+    : { ...input.headers };
   req.connection = socket;
   req.socket = socket;
 

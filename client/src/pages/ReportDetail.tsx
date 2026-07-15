@@ -226,6 +226,8 @@ export default function ReportDetail() {
                   key={selectedEntry.reportPath}
                   src={selectedEntry.reportPath}
                   title={selectedEntry.label}
+                  sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="no-referrer"
                   style={{
                     width: '100%',
                     minHeight: 760,

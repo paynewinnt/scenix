@@ -60,11 +60,11 @@ A single natural-language automation flow.
 Example:
 
 ```text
-1. Open the homepage
+1. Open the Bing homepage
 2. Click the search box
 3. Enter Midscene.js
-4. Click the search button
-5. Assert the page contains search results
+4. Click the search button and wait for the Midscene.js search results page
+5. Assert the search query is Midscene.js and at least one related result is shown
 ```
 
 ### Test Suite
@@ -119,17 +119,36 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-Recommended minimum configuration:
+Scenix supports both the existing API provider and a local Codex CLI provider. API mode remains backward compatible:
 
 ```env
+MIDSCENE_MODEL_PROVIDER=api
 MIDSCENE_MODEL_BASE_URL=...
 MIDSCENE_MODEL_API_KEY=...
 MIDSCENE_MODEL_NAME=...
 # MIDSCENE_MODEL_FAMILY=...
 ```
 
+Local Codex mode does not require a model API key. It defaults to `gpt-5.4` with `medium` reasoning effort:
+
+```bash
+codex --version
+codex login
+codex login status
+```
+
+```env
+MIDSCENE_MODEL_PROVIDER=codex
+MIDSCENE_MODEL_BASE_URL=codex://local
+MIDSCENE_MODEL_NAME=gpt-5.4
+MIDSCENE_MODEL_FAMILY=gpt-5
+MIDSCENE_MODEL_REASONING_EFFORT=medium
+```
+
 Useful options:
 
+- `SERVER_HOST=127.0.0.1` keeps the backend local-only by default
+- `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
 - `DATABASE_PATH=./server/data/app.db`
 - `MIDSCENE_RUN_DIR=./reports/midscene`
 - `MIDSCENE_CHROMIUM_EXECUTABLE_PATH=/path/to/chrome`
@@ -142,6 +161,8 @@ Notes:
 - `MIDSCENE_REPLANNING_CYCLE_LIMIT` defaults to `3`
 - UI time display is normalized to China time
 - If only `OPENAI_API_KEY` is set, runtime defaults are mirrored into the Midscene env vars automatically
+- Local Codex mode uses `codex app-server` with the current ChatGPT/Codex login; it still needs network access and available quota, and is not an offline model
+- Runtime readiness checks the Codex CLI, its `app-server` subcommand, and login status
 
 ### Run
 
@@ -244,6 +265,8 @@ pnpm test:android
 pnpm test:ios
 ```
 
+`pnpm test:web` always verifies the local Chromium search baseline. When `MIDSCENE_MODEL_*` is configured, it also runs the documented Midscene natural-language visual flow against the real Bing homepage. Android and iOS tests require real device environments.
+
 ## Contributing
 
 Every GitHub user may fork this repository, open an Issue, and submit a Pull Request to `master`. To protect the project and its users, maintainers merge external contributions after review and CI rather than granting anonymous direct write access.
@@ -258,6 +281,8 @@ Every GitHub user may fork this repository, open an Issue, and submit a Pull Req
 - Windows: frontend, backend, Web, Android
 - macOS: frontend, backend, Web, Android, iOS
 - iOS execution is macOS only
+- Authentication is not available yet, so the server listens on `127.0.0.1` by default
+- For trusted-LAN access only, set `SERVER_HOST=0.0.0.0`, `SCENIX_ALLOW_REMOTE=true`, and a restrictive `CORS_ORIGINS` allowlist; keep the service behind a firewall
 
 ## License
 
