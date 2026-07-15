@@ -28,9 +28,16 @@ testCasesRouter.get('/:id', (req, res) => {
 
 testCasesRouter.post('/', (req, res) => {
   const db = getDb();
-  const { name, platform, steps } = req.body;
+  const body = isRecord(req.body) ? req.body : {};
+  const { name, platform, steps } = body;
 
-  if (!name || !platform || !steps) {
+  if (
+    typeof name !== 'string' ||
+    !name.trim() ||
+    typeof platform !== 'string' ||
+    typeof steps !== 'string' ||
+    !steps.trim()
+  ) {
     return res.status(400).json({ error: 'Missing required fields: name, platform, steps' });
   }
   if (!['web', 'android', 'ios'].includes(platform)) {
@@ -42,7 +49,7 @@ testCasesRouter.post('/', (req, res) => {
 
   db.prepare(
     'INSERT INTO test_cases (id, name, platform, steps, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)',
-  ).run(id, name, platform, steps, now, now);
+  ).run(id, name.trim(), platform, steps.trim(), now, now);
 
   const row = db.prepare('SELECT * FROM test_cases WHERE id = ?').get(id);
   res.status(201).json(toCamelCase(row as Record<string, unknown>));
@@ -53,8 +60,18 @@ testCasesRouter.put('/:id', (req, res) => {
   const existing = db.prepare('SELECT * FROM test_cases WHERE id = ?').get(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Not found' });
 
-  const { name, platform, steps } = req.body;
-  if (platform !== undefined && !['web', 'android', 'ios'].includes(platform)) {
+  const body = isRecord(req.body) ? req.body : {};
+  const { name, platform, steps } = body;
+  if (name !== undefined && (typeof name !== 'string' || !name.trim())) {
+    return res.status(400).json({ error: 'Test case name must not be blank' });
+  }
+  if (steps !== undefined && (typeof steps !== 'string' || !steps.trim())) {
+    return res.status(400).json({ error: 'Test case steps must not be blank' });
+  }
+  if (
+    platform !== undefined &&
+    (typeof platform !== 'string' || !['web', 'android', 'ios'].includes(platform))
+  ) {
     return res.status(400).json({ error: 'Invalid platform. Must be web, android, or ios' });
   }
   if (name === undefined && platform === undefined && steps === undefined) {
@@ -71,7 +88,7 @@ testCasesRouter.put('/:id', (req, res) => {
 
   if (name !== undefined) {
     sets.push('name = ?');
-    params.push(name);
+    params.push((name as string).trim());
   }
   if (platform !== undefined) {
     sets.push('platform = ?');
@@ -79,7 +96,7 @@ testCasesRouter.put('/:id', (req, res) => {
   }
   if (steps !== undefined) {
     sets.push('steps = ?');
-    params.push(steps);
+    params.push((steps as string).trim());
   }
 
   sets.push('updated_at = ?');
@@ -106,4 +123,8 @@ function isCaseUsedInSuite(testCaseId: string): boolean {
     .get(testCaseId) as { found: number } | undefined;
 
   return Boolean(row);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

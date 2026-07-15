@@ -60,11 +60,11 @@ flowchart LR
 示例：
 
 ```text
-1. 打开首页
+1. 打开 Bing 首页
 2. 点击搜索框
 3. 输入 Midscene.js
-4. 点击搜索按钮
-5. 断言页面包含搜索结果
+4. 点击搜索按钮，并等待进入 Midscene.js 搜索结果页
+5. 断言搜索关键词为 Midscene.js，且至少显示一条相关结果
 ```
 
 ### 测试套件
@@ -119,20 +119,41 @@ cp .env.example .env
 Copy-Item .env.example .env
 ```
 
-推荐显式配置以下模型参数：
+Scenix 支持现有 API Provider 和本机 Codex CLI 两种模型入口。API 模式保持向后兼容：
 
 ```env
+MIDSCENE_MODEL_PROVIDER=api
 MIDSCENE_MODEL_BASE_URL=...
 MIDSCENE_MODEL_API_KEY=...
 MIDSCENE_MODEL_NAME=...
 # MIDSCENE_MODEL_FAMILY=...
 ```
 
+使用本机 Codex 时，不需要模型 API Key；默认模型为 `gpt-5.4`，推理强度为 `medium`：
+
+```bash
+codex --version
+codex login
+codex login status
+```
+
+```env
+MIDSCENE_MODEL_PROVIDER=codex
+MIDSCENE_MODEL_BASE_URL=codex://local
+MIDSCENE_MODEL_NAME=gpt-5.4
+MIDSCENE_MODEL_FAMILY=gpt-5
+MIDSCENE_MODEL_REASONING_EFFORT=medium
+```
+
 常用配置：
 
+- `SERVER_HOST=127.0.0.1`，默认只允许本机访问
+- `CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173`
 - `DATABASE_PATH=./server/data/app.db`
 - `MIDSCENE_RUN_DIR=./reports/midscene`
 - `MIDSCENE_CHROMIUM_EXECUTABLE_PATH=/path/to/chrome`
+- `MIDSCENE_BROWSER_LOCALE=zh-CN`，需要让匿名测试浏览器使用中文区域时设置
+- `MIDSCENE_BROWSER_TIMEZONE=Asia/Shanghai`，需要固定测试浏览器时区时设置
 - `MIDSCENE_ADB_PATH=/path/to/adb`，当 `adb` 不在 `PATH` 中时使用
 - `IOS_WDA_HOST` / `IOS_WDA_PORTS`，用于 iOS 执行
 
@@ -142,6 +163,9 @@ MIDSCENE_MODEL_NAME=...
 - `MIDSCENE_REPLANNING_CYCLE_LIMIT` 默认值为 `3`
 - 页面中的时间统一按中国时间显示
 - 如果只配置 `OPENAI_API_KEY`，运行时会自动镜像为 Midscene 所需环境变量
+- 本机 Codex 模式通过 `codex app-server` 复用当前 ChatGPT/Codex 登录；它仍需要网络和可用额度，不是离线模型
+- readiness 会检查 Codex CLI、`app-server` 子命令和登录状态
+- Playwright 每次执行都使用隔离的匿名浏览器上下文，不会自动继承日常 Chrome 的账号、Cookie、历史记录或扩展
 
 ### 启动
 
@@ -244,6 +268,8 @@ pnpm test:android
 pnpm test:ios
 ```
 
+`pnpm test:web` 会始终用 Chromium 验证本地搜索基线；配置好 `MIDSCENE_MODEL_*` 后，还会在真实 Bing 首页执行上述 Midscene 自然语言视觉流程。Android / iOS 属于真实设备测试，需要对应设备环境。
+
 ## 参与开源
 
 任何 GitHub 用户都可以 fork 本仓库、创建 Issue，并向 `master` 提交 Pull Request。为保护项目和所有使用者，外部贡献通过评审和 CI 后由维护者合并，而不是开放匿名直接写入仓库。
@@ -258,6 +284,8 @@ pnpm test:ios
 - Windows：frontend、backend、Web、Android
 - macOS：frontend、backend、Web、Android、iOS
 - iOS 执行仅支持 macOS
+- 当前版本尚未提供身份认证，因此服务默认只监听 `127.0.0.1`
+- 如确需局域网访问，必须同时设置 `SERVER_HOST=0.0.0.0`、`SCENIX_ALLOW_REMOTE=true` 和严格的 `CORS_ORIGINS`；请只在可信网络及防火墙保护下使用
 
 ## 许可证
 

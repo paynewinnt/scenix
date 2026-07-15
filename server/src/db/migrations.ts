@@ -126,6 +126,20 @@ const migrations: Migration[] = [
       ensureRunHistoryUsesCaseSnapshots(db);
     },
   },
+  {
+    id: '006_run_item_steps_snapshot',
+    description: 'Freeze test case steps when a queued run is created',
+    apply(db) {
+      addColumnIfMissing(db, 'test_run_items', 'steps_snapshot', 'TEXT');
+      db.prepare(
+        `UPDATE test_run_items
+         SET steps_snapshot = (
+           SELECT steps FROM test_cases WHERE test_cases.id = test_run_items.test_case_id
+         )
+         WHERE steps_snapshot IS NULL`,
+      ).run();
+    },
+  },
 ];
 
 export function applyMigrations(db: Database.Database): void {

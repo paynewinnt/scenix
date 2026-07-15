@@ -13,6 +13,9 @@ export interface AndroidAgentOptions {
   udid?: string;
   aiActionContext?: string;
   autoDismissKeyboard?: boolean;
+  testId?: string;
+  generateReport?: boolean;
+  reportFileName?: string;
 }
 
 export async function createAndroidAgent(options: AndroidAgentOptions = {}) {
@@ -31,6 +34,9 @@ export async function createAndroidAgent(options: AndroidAgentOptions = {}) {
     aiActionContext:
       options.aiActionContext ??
       'If any location, permission, or user agreement dialog appears, tap agree/allow.',
+    testId: options.testId,
+    generateReport: options.generateReport,
+    reportFileName: options.reportFileName,
   });
 
   return {
@@ -49,8 +55,9 @@ export async function createAndroidAgent(options: AndroidAgentOptions = {}) {
       return agent.aiQuery(dataShape, { prompt: instruction });
     },
 
-    async destroy(): Promise<void> {
+    async destroy(): Promise<string | undefined> {
       await agent.destroy();
+      return agent.reportFile ?? undefined;
     },
   };
 }

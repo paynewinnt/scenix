@@ -17,6 +17,7 @@ import {
 } from '../services/api';
 import { useSSE } from '../hooks/useSSE';
 import { formatChinaDateTime } from '../utils/datetime';
+import { calculatePassRate } from './dashboard-utils';
 
 const statusColors: Record<string, string> = {
   passed: 'green',
@@ -84,7 +85,7 @@ export default function Dashboard() {
   const totalRuns = runs.length;
   const passedRuns = runs.filter((r) => r.status === 'passed').length;
   const failedRuns = runs.filter((r) => r.status === 'failed').length;
-  const passRate = totalRuns > 0 ? ((passedRuns / totalRuns) * 100).toFixed(1) : '0';
+  const passRate = calculatePassRate(runs);
 
   const recentRuns = runs.slice(0, 10);
   const readinessStatusColors: Record<string, string> = {

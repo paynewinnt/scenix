@@ -160,11 +160,9 @@ function buildQueuedRunObservationMap(): Map<string, { queuePosition: number; bl
 
   const runningRuns = listCoordinatedRunsByStatus('running');
   const cachedDevices = peekCachedDevices();
-  const disconnectedDeviceIds = cachedDevices.length > 0
-    ? queuedRuns
-        .filter((run) => run.deviceId && !cachedDevices.some((device) => device.id === run.deviceId))
-        .map((run) => String(run.deviceId))
-    : [];
+  const disconnectedDeviceIds = queuedRuns
+    .filter((run) => run.deviceId && !cachedDevices.some((device) => device.id === run.deviceId))
+    .map((run) => String(run.deviceId));
 
   return observeQueuedRuns(queuedRuns, runningRuns, { disconnectedDeviceIds });
 }

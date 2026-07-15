@@ -1,8 +1,11 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-import { resolveAndroidSdkEnvironment } from '../../core/src/config/runtime-readiness';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  inspectCodexRuntime,
+  resolveAndroidSdkEnvironment,
+} from '../../core/src/config/runtime-readiness';
 
 const tempDirs: string[] = [];
 const ORIGINAL_ENV = {
@@ -20,6 +23,44 @@ afterEach(() => {
 });
 
 describe('runtime-readiness', () => {
+  it('checks the Codex CLI, app-server command, and login status', async () => {
+    const runCommand = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.143.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'Usage: codex app-server\n', stderr: '' })
+      .mockResolvedValueOnce({
+        stdout: '',
+        stderr: 'WARNING: proceeding despite a PATH alias issue\nLogged in using ChatGPT\n',
+      });
+
+    const status = await inspectCodexRuntime(runCommand);
+
+    expect(status).toEqual({
+      ready: true,
+      version: 'codex-cli 0.143.0',
+      loginStatus: 'Logged in using ChatGPT',
+    });
+    expect(runCommand.mock.calls).toEqual([
+      [['--version']],
+      [['app-server', '--help']],
+      [['login', 'status']],
+    ]);
+  });
+
+  it('reports an unavailable Codex login as a readiness error', async () => {
+    const runCommand = vi
+      .fn()
+      .mockResolvedValueOnce({ stdout: 'codex-cli 0.143.0\n', stderr: '' })
+      .mockResolvedValueOnce({ stdout: 'Usage: codex app-server\n', stderr: '' })
+      .mockRejectedValueOnce(new Error('Not logged in'));
+
+    const status = await inspectCodexRuntime(runCommand);
+
+    expect(status.ready).toBe(false);
+    expect(status.version).toBe('codex-cli 0.143.0');
+    expect(status.issue).toContain('Codex 尚未登录');
+  });
+
   it('resolves Android SDK from MIDSCENE_ADB_PATH when it points to platform-tools', () => {
     const sdkRoot = createAndroidSdkFixture();
     process.env.MIDSCENE_ADB_PATH = path.join(sdkRoot, 'platform-tools', adbExecutableName());

@@ -1,0 +1,14 @@
+# Midscene.js YAML Test Script - Bing Web search
+# Run: pnpm exec midscene ./scripts/web-search.yaml
+
+target:
+  # Opening the target fulfills step 1: 打开 Bing 首页
+  url: https://www.bing.com/
+
+tasks:
+  - name: Search for Midscene.js
+    flow:
+      - aiAction: 点击搜索框
+      - aiAction: 输入 Midscene.js
+      - aiAction: 点击搜索按钮，并等待进入 Midscene.js 搜索结果页
+      - aiAssert: 搜索关键词为 Midscene.js，且至少显示一条相关结果

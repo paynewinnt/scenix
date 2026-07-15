@@ -1,11 +1,7 @@
 import path from 'node:path';
 import { TestRunner, type TestCaseInput } from 'core';
 import { getCanonicalRunDir } from '../config/run-dir.js';
-import {
-  bindReportFile,
-  createReportSnapshot,
-  waitForNewReportFile,
-} from './report-binding.js';
+import { resolveGeneratedReportPath } from './report-binding.js';
 import { getDeviceById } from './device-service.js';
 import {
   reserveRunResources,
@@ -196,8 +192,6 @@ async function executeQueuedRun(run: AdmittedRun): Promise<void> {
         broadcastRunUpdate(run.runId);
       }
 
-      const reportSnapshot = createReportSnapshot(caseReportDir);
-
       try {
         const result = await runner.run({
           id: testCase.testCaseId,
@@ -206,14 +200,10 @@ async function executeQueuedRun(run: AdmittedRun): Promise<void> {
           steps: testCase.steps,
           deviceUdid: run.deviceUdid,
           deviceConfig: run.deviceConfig,
+          reportFileName: `case-${run.runId}-${testCase.itemId}`,
         });
 
-        const reportPath = await resolveCaseReportPath(
-          run.runId,
-          testCase.itemId,
-          reportSnapshot,
-          result.reportPath,
-        );
+        const reportPath = resolveGeneratedReportPath(caseReportDir, result.reportPath);
 
         markRunItemFinished({
           itemId: testCase.itemId,
@@ -236,13 +226,12 @@ async function executeQueuedRun(run: AdmittedRun): Promise<void> {
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         const finishedAt = new Date().toISOString();
-        const reportPath = await resolveCaseReportPath(run.runId, testCase.itemId, reportSnapshot);
 
         markRunItemFinished({
           itemId: testCase.itemId,
           status: 'error',
           finishedAt,
-          reportPath,
+          reportPath: null,
           errorMessage,
         });
 
@@ -288,24 +277,6 @@ async function executeQueuedRun(run: AdmittedRun): Promise<void> {
     broadcastRunUpdate(run.runId);
     throw error;
   }
-}
-
-async function resolveCaseReportPath(
-  runId: string,
-  itemId: string,
-  reportSnapshot: Set<string>,
-  reportPath?: string,
-): Promise<string | null> {
-  if (reportPath) {
-    return reportPath;
-  }
-
-  const newReportFile = await waitForNewReportFile(caseReportDir, reportSnapshot);
-  if (!newReportFile) {
-    return null;
-  }
-
-  return bindReportFile(caseReportDir, newReportFile, `case-${runId}-${itemId}.html`);
 }
 
 function updateSuiteOutcome(
